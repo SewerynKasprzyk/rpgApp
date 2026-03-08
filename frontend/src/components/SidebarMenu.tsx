@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 
 const menuItems = [
   { label: "Character", path: "/characters" },
-  { label: "Game Master", path: "/gamemaster" },
+  { label: "Game Master", path: "/gamemaster/threats" },
   { label: "Session", path: "/session" },
 ];
 
@@ -34,7 +34,7 @@ export default function SidebarMenu() {
             to={item.path}
             onClick={(e) => e.stopPropagation()}
             className={`sidebar__link ${
-              location.pathname.startsWith(item.path)
+              location.pathname.startsWith(item.path.replace("/threats", ""))
                 ? "sidebar__link--active"
                 : ""
             }`}

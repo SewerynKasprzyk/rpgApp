@@ -11,6 +11,8 @@ import { initRepositories } from "./repositories/repositoryFactory";
 import characterRoutes from "./routes/characters";
 import campaignRoutes from "./routes/campaigns";
 import sessionRoutes from "./routes/sessions";
+import threatGroupRoutes from "./routes/threatGroups";
+import locationGroupRoutes from "./routes/locationGroups";
 
 const app = express();
 const httpServer = createServer(app);
@@ -34,6 +36,8 @@ setSessionRealtimeGateway(gateway);
 app.use("/api/characters", characterRoutes);
 app.use("/api/campaigns", campaignRoutes);
 app.use("/api/sessions", sessionRoutes);
+app.use("/api/threatGroups", threatGroupRoutes);
+app.use("/api/locationGroups", locationGroupRoutes);
 
 // Serve frontend static files
 const frontendPath = path.join(__dirname, "..", "public");

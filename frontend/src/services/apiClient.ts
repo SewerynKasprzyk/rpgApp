@@ -1,4 +1,4 @@
-import { Character, CreateCharacterInput, UpdateCharacterInput, Session, CreateSessionInput, UpdateSessionInput } from "@rpg/shared";
+import { Character, CreateCharacterInput, UpdateCharacterInput, Session, CreateSessionInput, UpdateSessionInput, ThreatGroup, CreateThreatGroupInput, UpdateThreatGroupInput, LocationGroup, CreateLocationGroupInput, UpdateLocationGroupInput } from "@rpg/shared";
 
 const BASE = `${import.meta.env.VITE_API_URL ?? "http://localhost:3001"}/api`;
 
@@ -6,6 +6,9 @@ async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Request failed with status ${res.status}`);
+  }
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return undefined as unknown as T;
   }
   return res.json();
 }
@@ -85,6 +88,86 @@ export async function updateSession(
 
 export async function deleteSession(id: string): Promise<void> {
   const res = await fetch(`${BASE}/sessions/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  await handleResponse(res);
+}
+
+// ——— ThreatGroups ———
+
+export async function fetchThreatGroups(): Promise<ThreatGroup[]> {
+  const res = await fetch(`${BASE}/threatGroups`);
+  return handleResponse<ThreatGroup[]>(res);
+}
+
+export async function fetchThreatGroup(id: string): Promise<ThreatGroup> {
+  const res = await fetch(`${BASE}/threatGroups/${encodeURIComponent(id)}`);
+  return handleResponse<ThreatGroup>(res);
+}
+
+export async function createThreatGroup(input: CreateThreatGroupInput): Promise<ThreatGroup> {
+  const res = await fetch(`${BASE}/threatGroups`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return handleResponse<ThreatGroup>(res);
+}
+
+export async function updateThreatGroup(
+  id: string,
+  input: UpdateThreatGroupInput
+): Promise<ThreatGroup> {
+  const res = await fetch(`${BASE}/threatGroups/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return handleResponse<ThreatGroup>(res);
+}
+
+export async function deleteThreatGroup(id: string): Promise<void> {
+  const res = await fetch(`${BASE}/threatGroups/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  await handleResponse(res);
+}
+
+// ——— LocationGroups ———
+
+export async function fetchLocationGroups(): Promise<LocationGroup[]> {
+  const res = await fetch(`${BASE}/locationGroups`);
+  return handleResponse<LocationGroup[]>(res);
+}
+
+export async function fetchLocationGroup(id: string): Promise<LocationGroup> {
+  const res = await fetch(`${BASE}/locationGroups/${encodeURIComponent(id)}`);
+  return handleResponse<LocationGroup>(res);
+}
+
+export async function createLocationGroup(input: CreateLocationGroupInput): Promise<LocationGroup> {
+  const res = await fetch(`${BASE}/locationGroups`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return handleResponse<LocationGroup>(res);
+}
+
+export async function updateLocationGroup(
+  id: string,
+  input: UpdateLocationGroupInput
+): Promise<LocationGroup> {
+  const res = await fetch(`${BASE}/locationGroups/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return handleResponse<LocationGroup>(res);
+}
+
+export async function deleteLocationGroup(id: string): Promise<void> {
+  const res = await fetch(`${BASE}/locationGroups/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
   await handleResponse(res);
