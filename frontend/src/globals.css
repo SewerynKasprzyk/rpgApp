@@ -633,6 +633,7 @@
   font-size: 0.9rem;
 }
 
+
 /* Threats Sidebar (separate from session sidebar) */
 .threats-sidebar {
   position: relative;
@@ -802,8 +803,9 @@
   border: 2px solid var(--border);
   border-radius: 12px;
   background: var(--card-bg);
+  margin: 1.5rem 5%;
   padding: 0.5rem 0.5rem;
-  gap: 0.1%;
+  gap: 5%;
 }
 
 .gm-navbar__link {
@@ -2018,6 +2020,10 @@ button:disabled {
 
 .session-detail {
   padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .session-detail__title {
@@ -2075,7 +2081,8 @@ button:disabled {
   flex-direction: column;
   flex-shrink: 0;
   cursor: pointer;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
   height: 100%;
   align-self: stretch;
 }
