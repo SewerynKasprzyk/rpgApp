@@ -1,5 +1,5 @@
 import { Character, CreateCharacterInput, UpdateCharacterInput } from "@rpg/shared";
-import { getCharacterRepository } from "../repositories/repositoryFactory";
+import { getCharacterRepository, getSessionRepository } from "../repositories/repositoryFactory";
 import { RealtimeGateway, MockRealtimeGateway } from "../realtime/realtimeGateway";
 
 let gateway: RealtimeGateway = new MockRealtimeGateway();
@@ -29,6 +29,33 @@ export async function updateCharacter(
   const updated = await getCharacterRepository().update(id, input);
   if (updated) {
     gateway.broadcastCharacterUpdated(updated);
+
+    // Propagate relevant character fields into any session snapshots
+    const sessionRepo = getSessionRepository();
+    const allSessions = await sessionRepo.getAll();
+    await Promise.all(
+      allSessions
+        .filter((s) => s.characters.some((c) => c.characterId === id))
+        .map(async (session) => {
+          const patchedSession = await sessionRepo.update(session.id, {
+            characters: session.characters.map((sc) =>
+              sc.characterId === id
+                ? {
+                    ...sc,
+                    name: updated.name ?? sc.name,
+                    portraitUrl: updated.portraitUrl ?? sc.portraitUrl,
+                    backpackTags: updated.backpackTags ?? sc.backpackTags,
+                    companions: updated.companions ?? sc.companions,
+                    relationshipTags: updated.relationshipTags ?? sc.relationshipTags,
+                  }
+                : sc
+            ),
+          });
+          if (patchedSession) {
+            gateway.broadcastSessionUpdated(patchedSession);
+          }
+        })
+    );
   }
   return updated;
 }

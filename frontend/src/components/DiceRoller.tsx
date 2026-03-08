@@ -71,6 +71,10 @@ export default function DiceRoller({ session, onChange }: Props) {
         timestamp: Date.now(),
       };
 
+      // Advance the ref BEFORE calling onChange so the diceHistory useEffect
+      // doesn't mistake this local roll for a remote one and re-animate.
+      historyLenRef.current = (session.diceHistory?.length ?? 0) + 1;
+
       onChange({
         diceHistory: [...(session.diceHistory || []), result],
       });

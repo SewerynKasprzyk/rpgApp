@@ -33,7 +33,7 @@ export default function Section1HeroCard({ character, onChange }: Props) {
   ) => {
     onChange({
       sectionQuestCheckboxes: {
-        ...character.sectionQuestCheckboxes,
+        ...( character.sectionQuestCheckboxes ?? {} ),
         [group]: values,
       },
     });
@@ -186,17 +186,17 @@ export default function Section1HeroCard({ character, onChange }: Props) {
             <div className="quest-checkboxes">
               <CheckboxGroup
                 label="Abandon"
-                values={character.sectionQuestCheckboxes.abandon}
+                values={character.sectionQuestCheckboxes?.abandon ?? [false, false, false]}
                 onChange={(v) => updateQuestCheckboxes("abandon", v)}
               />
               <CheckboxGroup
                 label="Improve"
-                values={character.sectionQuestCheckboxes.improve}
+                values={character.sectionQuestCheckboxes?.improve ?? [false, false, false]}
                 onChange={(v) => updateQuestCheckboxes("improve", v)}
               />
               <CheckboxGroup
                 label="Milestone"
-                values={character.sectionQuestCheckboxes.milestone}
+                values={character.sectionQuestCheckboxes?.milestone ?? [false, false, false]}
                 onChange={(v) => updateQuestCheckboxes("milestone", v)}
               />
             </div>

@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
 import { ThemeCard as ThemeCardType, ThemeIcon, QuestCheckboxes, UpdateCharacterInput } from "@rpg/shared";
-import EditableSlotList from "./EditableSlotList";
 import AbilitySlotList from "./AbilitySlotList";
 import QuestSlotList from "./QuestSlotList";
 import CheckboxGroup from "./CheckboxGroup";
@@ -89,7 +88,7 @@ function ThemeCardComponent({ card, index, onChange, editMode }: ThemeCardProps)
 
       <div className="theme-card__section">
         <span className="theme-card__label theme-card__label--red">Downsides ↓</span>
-        <EditableSlotList
+        <AbilitySlotList
           items={card.downsides}
           onChange={(items) => onChange({ ...card, downsides: items })}
           placeholder="Add Downside"

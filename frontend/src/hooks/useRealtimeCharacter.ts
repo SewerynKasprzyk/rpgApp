@@ -18,7 +18,13 @@ export function useRealtimeCharacter(
         event.type === "character_updated" &&
         event.character.id === characterId
       ) {
-        setCharacter((prev) => (prev ? { ...prev, ...event.character } : event.character));
+        setCharacter((prev) => {
+          const merged = prev ? { ...prev, ...event.character } : event.character;
+          return {
+            ...merged,
+            sectionQuestCheckboxes: merged.sectionQuestCheckboxes ?? { abandon: [false,false,false], improve: [false,false,false], milestone: [false,false,false] },
+          } as typeof merged;
+        });
       }
       if (
         event.type === "character_deleted" &&

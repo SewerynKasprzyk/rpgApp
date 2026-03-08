@@ -1,5 +1,5 @@
 import { Session, CreateSessionInput, UpdateSessionInput } from "@rpg/shared";
-import { getSessionRepository } from "../repositories/repositoryFactory";
+import { getSessionRepository, getCharacterRepository } from "../repositories/repositoryFactory";
 import { RealtimeGateway, MockRealtimeGateway } from "../realtime/realtimeGateway";
 
 let gateway: RealtimeGateway = new MockRealtimeGateway();
@@ -29,6 +29,26 @@ export async function updateSession(
   const updated = await getSessionRepository().update(id, input);
   if (updated) {
     gateway.broadcastSessionUpdated(updated);
+
+    // Sync session character changes back to their character documents
+    if (input.characters) {
+      const charRepo = getCharacterRepository();
+      await Promise.all(
+        input.characters.map(async (sc) => {
+          const updated = await charRepo.update(sc.characterId, {
+            themeCards: sc.themeCards,
+            currentStatuses: sc.currentStatuses,
+            sectionQuestCheckboxes: sc.sectionQuestCheckboxes,
+            backpackTags: sc.backpackTags,
+            companions: sc.companions,
+            relationshipTags: sc.relationshipTags,
+          });
+          if (updated) {
+            gateway.broadcastCharacterUpdated(updated);
+          }
+        })
+      );
+    }
   }
   return updated;
 }

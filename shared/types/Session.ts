@@ -8,6 +8,9 @@ export interface SessionCharacter {
   themeCards: [ThemeCard, ThemeCard, ThemeCard, ThemeCard];
   currentStatuses: StatusTag[];
   sectionQuestCheckboxes: QuestCheckboxes;
+  backpackTags: string[];
+  companions: string[];
+  relationshipTags: string[];
 }
 
 /** Enemy entity in the session (Section 4) */

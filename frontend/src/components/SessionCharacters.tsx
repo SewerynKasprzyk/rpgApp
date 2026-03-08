@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   Session,
   UpdateSessionInput,
@@ -10,6 +10,28 @@ import {
 import { v4 as uuid } from "uuid";
 import RoundCheckbox from "./RoundCheckbox";
 import CheckboxGroup from "./CheckboxGroup";
+
+function BackpackInput({ onAdd }: { onAdd: (text: string) => void }) {
+  const [value, setValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const commit = () => {
+    if (value.trim()) {
+      onAdd(value.trim());
+      setValue("");
+      inputRef.current?.focus();
+    }
+  };
+  return (
+    <input
+      ref={inputRef}
+      className="session-char-card__backpack-input"
+      value={value}
+      placeholder="Add item…"
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } }}
+    />
+  );
+}
 
 interface Props {
   session: Session;
@@ -46,6 +68,9 @@ export default function SessionCharacters({
           improve: [false, false, false],
           milestone: [false, false, false],
         },
+        backpackTags: fullChar.backpackTags ?? [],
+        companions: fullChar.companions ?? [],
+        relationshipTags: fullChar.relationshipTags ?? [],
       };
 
       onChange({ characters: [...session.characters, newSessionChar] });
@@ -112,6 +137,27 @@ export default function SessionCharacters({
     });
   };
 
+  const addBackpackItem = (charId: string, text: string) => {
+    if (!text.trim()) return;
+    onChange({
+      characters: session.characters.map((c) =>
+        c.characterId === charId
+          ? { ...c, backpackTags: [...(c.backpackTags ?? []), text.trim()] }
+          : c
+      ),
+    });
+  };
+
+  const removeBackpackItem = (charId: string, index: number) => {
+    onChange({
+      characters: session.characters.map((c) =>
+        c.characterId === charId
+          ? { ...c, backpackTags: (c.backpackTags ?? []).filter((_, i) => i !== index) }
+          : c
+      ),
+    });
+  };
+
   const updateThemeCheckboxes = (
     charId: string,
     themeIndex: number,
@@ -134,24 +180,116 @@ export default function SessionCharacters({
     });
   };
 
-  const updateSectionQuestCheckboxes = (
+  const toggleAbilityMark = (
     charId: string,
-    key: keyof QuestCheckboxes,
-    values: [boolean, boolean, boolean]
+    themeIndex: number,
+    abilityIndex: number
   ) => {
     onChange({
       characters: session.characters.map((c) =>
         c.characterId === charId
           ? {
               ...c,
-              sectionQuestCheckboxes: {
-                ...(c.sectionQuestCheckboxes ?? {
-                  abandon: [false, false, false],
-                  improve: [false, false, false],
-                  milestone: [false, false, false],
-                }),
-                [key]: values,
-              },
+              themeCards: c.themeCards.map((tc, i) =>
+                i === themeIndex
+                  ? {
+                      ...tc,
+                      abilities: tc.abilities.map((ab, j) => {
+                        const ability = typeof ab === "string" ? { text: ab, isMarked: false } : ab;
+                        return j === abilityIndex
+                          ? { ...ability, isMarked: !ability.isMarked }
+                          : ability;
+                      }),
+                    }
+                  : tc
+              ) as [any, any, any, any],
+            }
+          : c
+      ),
+    });
+  };
+
+  const toggleAbilityCross = (
+    charId: string,
+    themeIndex: number,
+    abilityIndex: number
+  ) => {
+    onChange({
+      characters: session.characters.map((c) =>
+        c.characterId === charId
+          ? {
+              ...c,
+              themeCards: c.themeCards.map((tc, i) =>
+                i === themeIndex
+                  ? {
+                      ...tc,
+                      abilities: tc.abilities.map((ab, j) => {
+                        const ability = typeof ab === "string" ? { text: ab, isMarked: false } : ab;
+                        return j === abilityIndex
+                          ? { ...ability, isCrossed: !ability.isCrossed }
+                          : ability;
+                      }),
+                    }
+                  : tc
+              ) as [any, any, any, any],
+            }
+          : c
+      ),
+    });
+  };
+
+  const toggleDownsideMark = (
+    charId: string,
+    themeIndex: number,
+    downsideIndex: number
+  ) => {
+    onChange({
+      characters: session.characters.map((c) =>
+        c.characterId === charId
+          ? {
+              ...c,
+              themeCards: c.themeCards.map((tc, i) =>
+                i === themeIndex
+                  ? {
+                      ...tc,
+                      downsides: tc.downsides.map((d, j) => {
+                        const ds = typeof d === "string" ? { text: d, isMarked: false } : d;
+                        return j === downsideIndex
+                          ? { ...ds, isMarked: !ds.isMarked }
+                          : ds;
+                      }),
+                    }
+                  : tc
+              ) as [any, any, any, any],
+            }
+          : c
+      ),
+    });
+  };
+
+  const toggleDownsideCross = (
+    charId: string,
+    themeIndex: number,
+    downsideIndex: number
+  ) => {
+    onChange({
+      characters: session.characters.map((c) =>
+        c.characterId === charId
+          ? {
+              ...c,
+              themeCards: c.themeCards.map((tc, i) =>
+                i === themeIndex
+                  ? {
+                      ...tc,
+                      downsides: tc.downsides.map((d, j) => {
+                        const ds = typeof d === "string" ? { text: d, isMarked: false } : d;
+                        return j === downsideIndex
+                          ? { ...ds, isCrossed: !ds.isCrossed }
+                          : ds;
+                      }),
+                    }
+                  : tc
+              ) as [any, any, any, any],
             }
           : c
       ),
@@ -201,17 +339,9 @@ export default function SessionCharacters({
       <div className="session-characters__grid">
         {session.characters.map((sc) => (
           <div key={sc.characterId} className="session-char-card">
-            <div className="session-char-card__header">
-              {sc.portraitUrl ? (
-                <img
-                  className="session-char-card__portrait"
-                  src={sc.portraitUrl}
-                  alt={sc.name}
-                />
-              ) : (
-                <div className="session-char-card__portrait-placeholder">?</div>
-              )}
-              <div className="session-char-card__info">
+            {/* ── LEFT COLUMN ── */}
+            <div className="session-char-card__left">
+              <div className="session-char-card__name-row">
                 <strong>{sc.name}</strong>
                 <button
                   className="status-box__remove"
@@ -221,10 +351,117 @@ export default function SessionCharacters({
                   ×
                 </button>
               </div>
+              <div className="session-char-card__portrait-wrap">
+                {sc.portraitUrl ? (
+                  <img
+                    className="session-char-card__portrait"
+                    src={sc.portraitUrl}
+                    alt={sc.name}
+                  />
+                ) : (
+                  <div className="session-char-card__portrait-placeholder">?</div>
+                )}
+              </div>
+
+              <div className="session-char-card__section">
+                <span className="session-char-card__section-label">🎒 Backpack</span>
+                <div className="session-char-card__tags">
+                  {(sc.backpackTags ?? []).map((t, i) => (
+                    <span key={i} className="session-char-card__tag">
+                      {t}
+                      <button
+                        className="session-char-card__tag-remove"
+                        onClick={() => removeBackpackItem(sc.characterId, i)}
+                        title="Remove"
+                      >×</button>
+                    </span>
+                  ))}
+                </div>
+                <BackpackInput onAdd={(text) => addBackpackItem(sc.characterId, text)} />
+              </div>
+
+              {(sc.companions ?? []).length > 0 && (
+                <div className="session-char-card__section">
+                  <span className="session-char-card__section-label">🐾 Companions</span>
+                  <div className="session-char-card__tags">
+                    {sc.companions.map((t, i) => (
+                      <span key={i} className="session-char-card__tag">{t}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(sc.relationshipTags ?? []).length > 0 && (
+                <div className="session-char-card__section">
+                  <span className="session-char-card__section-label">🤝 Relationships</span>
+                  <div className="session-char-card__tags">
+                    {sc.relationshipTags.map((t, i) => (
+                      <span key={i} className="session-char-card__tag">{t}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Statuses */}
+              <div className="session-char-card__section-label" style={{ marginTop: "0.25rem" }}>🏷️ Current Statuses</div>
+              <div className="status-list">
+                {sc.currentStatuses.map((s) => (
+                  <div key={s.id} className="status-box">
+                    <div className="status-box__top">
+                      <input
+                        className="status-box__tag"
+                        value={s.tag}
+                        placeholder="Tag"
+                        onChange={(e) =>
+                          updateStatus(sc.characterId, s.id, {
+                            tag: e.target.value,
+                          })
+                        }
+                      />
+                      <input
+                        className="status-box__note"
+                        value={s.note}
+                        placeholder="Note"
+                        onChange={(e) =>
+                          updateStatus(sc.characterId, s.id, {
+                            note: e.target.value,
+                          })
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="status-box__remove"
+                        onClick={() => removeStatus(sc.characterId, s.id)}
+                        title="Remove status"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className="status-box__checkboxes">
+                      {s.checkboxes.map((v, i) => (
+                        <RoundCheckbox
+                          key={i}
+                          checked={v}
+                          onChange={() =>
+                            toggleCheckbox(sc.characterId, s.id, i)
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="add-slot-btn"
+                onClick={() => addStatus(sc.characterId)}
+              >
+                + Create Tag
+              </button>
             </div>
 
-            {/* Theme card icons + abilities */}
-            <div className="session-char-card__themes">
+            {/* ── RIGHT COLUMN ── */}
+            <div className="session-char-card__right">
               {sc.themeCards.map((tc, i) => (
                 <div key={i} className="session-char-card__theme-block">
                   <span className="session-char-card__theme-badge">
@@ -246,10 +483,42 @@ export default function SessionCharacters({
                             key={j}
                             className={`session-char-card__ability ${
                               ability.isMarked ? "session-char-card__ability--marked" : ""
-                            }`}
+                            } ${ability.isCrossed ? "session-char-card__ability--crossed" : ""}`}
+                            onClick={() => toggleAbilityMark(sc.characterId, i, j)}
+                            title="Click text to glow, click icon to cross out"
                           >
-                            {ability.isMarked && <span className="session-char-card__ability-icon">⚔️</span>}
                             {ability.text}
+                            <span
+                              className={`session-char-card__ability-icon ${
+                                ability.isCrossed ? "session-char-card__ability-icon--active session-char-card__ability-icon--crossed" : ""
+                              }`}
+                              onClick={(e) => { e.stopPropagation(); toggleAbilityCross(sc.characterId, i, j); }}
+                            >⚔️</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  {tc.downsides.length > 0 && (
+                    <ul className="session-char-card__abilities session-char-card__downsides">
+                      {tc.downsides.map((ds, j) => {
+                        const downside = typeof ds === "string" ? { text: ds, isMarked: false } : ds;
+                        return (
+                          <li
+                            key={j}
+                            className={`session-char-card__ability session-char-card__downside ${
+                              downside.isMarked ? "session-char-card__downside--marked" : ""
+                            } ${downside.isCrossed ? "session-char-card__ability--crossed" : ""}`}
+                            onClick={() => toggleDownsideMark(sc.characterId, i, j)}
+                            title="Click text to glow, click icon to cross out"
+                          >
+                            {downside.text}
+                            <span
+                              className={`session-char-card__ability-icon ${
+                                downside.isCrossed ? "session-char-card__ability-icon--active session-char-card__ability-icon--crossed" : ""
+                              }`}
+                              onClick={(e) => { e.stopPropagation(); toggleDownsideCross(sc.characterId, i, j); }}
+                            >⚔️</span>
                           </li>
                         );
                       })}
@@ -289,84 +558,7 @@ export default function SessionCharacters({
                 </div>
               ))}
             </div>
-
-            {/* Section Quest Checkboxes */}
-            <div className="session-char-card__section-checkboxes">
-              <h4 className="session-char-card__section-label">Quest Progress</h4>
-              <div className="quest-checkboxes">
-                <CheckboxGroup
-                  label="Abandon"
-                  values={(sc.sectionQuestCheckboxes ?? { abandon: [false, false, false], improve: [false, false, false], milestone: [false, false, false] }).abandon}
-                  onChange={(v) => updateSectionQuestCheckboxes(sc.characterId, "abandon", v)}
-                />
-                <CheckboxGroup
-                  label="Improve"
-                  values={(sc.sectionQuestCheckboxes ?? { abandon: [false, false, false], improve: [false, false, false], milestone: [false, false, false] }).improve}
-                  onChange={(v) => updateSectionQuestCheckboxes(sc.characterId, "improve", v)}
-                />
-                <CheckboxGroup
-                  label="Milestone"
-                  values={(sc.sectionQuestCheckboxes ?? { abandon: [false, false, false], improve: [false, false, false], milestone: [false, false, false] }).milestone}
-                  onChange={(v) => updateSectionQuestCheckboxes(sc.characterId, "milestone", v)}
-                />
-              </div>
-            </div>
-
-            {/* Statuses */}
-            <div className="status-list">
-              {sc.currentStatuses.map((s) => (
-                <div key={s.id} className="status-box">
-                  <div className="status-box__top">
-                    <input
-                      className="status-box__tag"
-                      value={s.tag}
-                      placeholder="Tag"
-                      onChange={(e) =>
-                        updateStatus(sc.characterId, s.id, {
-                          tag: e.target.value,
-                        })
-                      }
-                    />
-                    <input
-                      className="status-box__note"
-                      value={s.note}
-                      placeholder="Note"
-                      onChange={(e) =>
-                        updateStatus(sc.characterId, s.id, {
-                          note: e.target.value,
-                        })
-                      }
-                    />
-                    <button
-                      type="button"
-                      className="status-box__remove"
-                      onClick={() => removeStatus(sc.characterId, s.id)}
-                      title="Remove status"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <div className="status-box__checkboxes">
-                    {s.checkboxes.map((v, i) => (
-                      <RoundCheckbox
-                        key={i}
-                        checked={v}
-                        onChange={() =>
-                          toggleCheckbox(sc.characterId, s.id, i)
-                        }
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="add-slot-btn"
-              onClick={() => addStatus(sc.characterId)}
-            >
-              + Create Tag
-            </button>
+            {/* end right column */}
           </div>
         ))}
       </div>

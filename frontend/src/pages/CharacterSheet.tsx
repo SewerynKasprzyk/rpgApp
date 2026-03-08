@@ -10,6 +10,20 @@ import Section4Details from "../components/Section4Details";
 
 const DEBOUNCE_MS = 500;
 
+const EMPTY_CHECKBOXES = { abandon: [false, false, false] as [boolean,boolean,boolean], improve: [false, false, false] as [boolean,boolean,boolean], milestone: [false, false, false] as [boolean,boolean,boolean] };
+
+function normalizeCharacter(c: Partial<Character>): Character {
+  return {
+    ...CHAR_DEFAULTS,
+    ...c,
+    sectionQuestCheckboxes: c.sectionQuestCheckboxes ?? CHAR_DEFAULTS.sectionQuestCheckboxes!,
+    themeCards: (c.themeCards ?? CHAR_DEFAULTS.themeCards!).map((tc) => ({
+      ...tc,
+      checkboxes: tc.checkboxes ?? EMPTY_CHECKBOXES,
+    })) as Character["themeCards"],
+  } as Character;
+}
+
 const CHAR_DEFAULTS: Partial<Character> = {
   playerName: "",
   backpackTags: [],
@@ -48,7 +62,7 @@ export default function CharacterSheet() {
     if (!id) return;
     fetchCharacter(id)
       .then((c) => {
-        setCharacter({ ...CHAR_DEFAULTS, ...c } as Character);
+        setCharacter(normalizeCharacter(c));
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));

@@ -37,13 +37,14 @@ export type ThemeIcon = "leaf" | "sword" | "crown" | null;
 export interface Ability {
   text: string;
   isMarked: boolean;
+  isCrossed?: boolean;
 }
 
 export interface ThemeCard {
   icon: ThemeIcon;
   type: string;
-  abilities: Ability[];
-  downsides: string[];
+  abilities: (Ability | string)[];
+  downsides: (Ability | string)[];
   quests: QuestEntry[];
   checkboxes: QuestCheckboxes;
 }
