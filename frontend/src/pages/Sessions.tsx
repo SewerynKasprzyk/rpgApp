@@ -16,8 +16,6 @@ export default function Sessions() {
       name,
       description,
       characters: [],
-      enemies: [],
-      neutrals: [],
       diceHistory: [],
     });
     setName("");
@@ -73,9 +71,7 @@ export default function Sessions() {
               </h3>
               {s.description && <p>{s.description}</p>}
               <p>
-                <strong>Characters:</strong> {s.characters.length} &nbsp;|&nbsp;
-                <strong>Enemies:</strong> {s.enemies.length} &nbsp;|&nbsp;
-                <strong>Neutrals:</strong> {s.neutrals.length}
+                <strong>Characters:</strong> {s.characters.length}
               </p>
               <div className="character-card-actions">
                 <Link to={`/session/${s.id}`}>

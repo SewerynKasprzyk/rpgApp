@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { LocationGroup } from "@rpg/shared";
+import DraggableSourceItem from "./DraggableSourceItem";
 
 interface Props {
   groups: LocationGroup[];
@@ -122,8 +123,8 @@ export default function LocationGroupsSidebar({
                   <div className={`tg-group__threats${isExpanded ? " tg-group__threats--open" : ""}`}>
                     <div className="tg-group__threats__inner">
                       {group.locations.map(loc => (
+                        <DraggableSourceItem key={loc.id} id={`adv-loc-${loc.id}`} sourceType="advLocation" sourceId={loc.id} label={loc.name} payload={loc as unknown as Record<string, unknown>}>
                         <div
-                          key={loc.id}
                           className={`tg-threat-item${selectedLocationId === loc.id && isActiveGroup ? " tg-threat-item--active" : ""}`}
                           onClick={e => { e.stopPropagation(); onSelectLocation(group.id, loc.id); }}
                         >
@@ -142,6 +143,7 @@ export default function LocationGroupsSidebar({
                             ×
                           </button>
                         </div>
+                        </DraggableSourceItem>
                       ))}
                       <button
                         type="button"

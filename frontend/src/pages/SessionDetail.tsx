@@ -1,13 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Session, UpdateSessionInput, Character } from "@rpg/shared";
-import { fetchSession, updateSession, fetchCharacters } from "../services/apiClient";
+import { fetchSession, updateSession, fetchCharacters, updateCharacter } from "../services/apiClient";
 import { useRealtimeSession } from "../hooks/useRealtimeSession";
 import SessionCharacterSidebar from "../components/SessionCharacterSidebar";
 import SessionCharacters from "../components/SessionCharacters";
-import SessionEnemies from "../components/SessionEnemies";
-import SessionNeutrals from "../components/SessionNeutrals";
 import DiceRoller from "../components/DiceRoller";
+import SessionMainBoard from "../components/SessionMainBoard";
+import { useSessionContext } from "../context/SessionContext";
 
 const DEBOUNCE_MS = 500;
 
@@ -20,8 +20,17 @@ export default function SessionDetail() {
   const [error, setError] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingUpdates = useRef<UpdateSessionInput>({});
+  // Ref mirrors current session so handleChange can read it synchronously
+  const sessionRef = useRef<Session | null>(null);
+  sessionRef.current = session;
+  // Per-character debounced DB sync for sceneStatuses / currentStatuses
+  const pendingCharUpdates = useRef<Map<string, Partial<{ sceneStatuses: unknown; currentStatuses: unknown }>>>(new Map());
+  const charSaveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  useRealtimeSession(id, setSession);
+  const { register } = useSessionContext();
+  const getPending = useCallback(() => pendingUpdates.current, []);
+
+  useRealtimeSession(id, setSession, getPending);
 
   useEffect(() => {
     if (!id) return;
@@ -43,22 +52,86 @@ export default function SessionDetail() {
     );
   }, [id]);
 
+  const flushCharSave = useCallback((charId: string) => {
+    const patch = pendingCharUpdates.current.get(charId);
+    if (!patch || Object.keys(patch).length === 0) return;
+    pendingCharUpdates.current.delete(charId);
+    updateCharacter(charId, patch as Parameters<typeof updateCharacter>[1]).catch((err) =>
+      console.error("Character auto-save failed:", err)
+    );
+  }, []);
+
   const handleChange = useCallback(
     (updates: UpdateSessionInput) => {
-      setSession((prev) => (prev ? { ...prev, ...updates } : prev));
-      pendingUpdates.current = { ...pendingUpdates.current, ...updates };
+      // ── Problem 2: Session Characters changed without scenes → sync back to scene snapshots ──
+      let fullUpdates = { ...updates };
+      if (updates.characters && !updates.scenes && sessionRef.current) {
+        fullUpdates.scenes = (sessionRef.current.scenes ?? []).map((scene) => ({
+          ...scene,
+          items: (scene.items ?? []).map((item) => {
+            if (item.sourceType !== "character") return item;
+            const matchChar = updates.characters!.find((c) => c.characterId === item.sourceId);
+            if (!matchChar) return item;
+            const snap = item.snapshot as Record<string, unknown>;
+            return {
+              ...item,
+              snapshot: {
+                ...snap,
+                statuses: matchChar.sceneStatuses ?? snap.statuses ?? [],
+                currentStatuses: matchChar.currentStatuses ?? snap.currentStatuses ?? [],
+              },
+            };
+          }),
+        }));
+      }
+
+      setSession((prev) => (prev ? { ...prev, ...fullUpdates } : prev));
+      pendingUpdates.current = { ...pendingUpdates.current, ...fullUpdates };
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(flushSave, DEBOUNCE_MS);
+
+      // ── Problem 1: Persist sceneStatuses / currentStatuses changes to character DB ──
+      if (updates.characters) {
+        for (const sc of updates.characters) {
+          const patch: Record<string, unknown> = {};
+          if (sc.sceneStatuses !== undefined) patch.sceneStatuses = sc.sceneStatuses;
+          if (sc.currentStatuses !== undefined) patch.currentStatuses = sc.currentStatuses;
+          if (Object.keys(patch).length === 0) continue;
+          const prev = pendingCharUpdates.current.get(sc.characterId) ?? {};
+          pendingCharUpdates.current.set(sc.characterId, { ...prev, ...patch });
+          const t = charSaveTimers.current.get(sc.characterId);
+          if (t) clearTimeout(t);
+          charSaveTimers.current.set(
+            sc.characterId,
+            setTimeout(() => flushCharSave(sc.characterId), DEBOUNCE_MS)
+          );
+        }
+      }
     },
-    [flushSave]
+    [flushSave, flushCharSave]
   );
 
   useEffect(() => {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       flushSave();
+      // Flush any pending character saves on unmount
+      charSaveTimers.current.forEach((t, charId) => {
+        clearTimeout(t);
+        flushCharSave(charId);
+      });
     };
-  }, [flushSave]);
+  }, [flushSave, flushCharSave]);
+
+  // Register this session into Layout's context so GMPanel can access it
+  useEffect(() => {
+    register(session, handleChange);
+  }, [session, handleChange, register]);
+
+  // Unregister on unmount
+  useEffect(() => {
+    return () => register(null, () => {});
+  }, [register]);
 
   if (loading) return <p>Loading…</p>;
   if (error) return <p className="error">{error}</p>;
@@ -84,18 +157,19 @@ export default function SessionDetail() {
 
         {/* Main content area */}
         <div className="session-detail__main">
-          {/* Section 3 — Characters in session (top) */}
+          {/* Main Board — scenes navbar + board canvas */}
+          <SessionMainBoard
+            scenes={session.scenes ?? []}
+            session={session}
+            onChange={handleChange}
+          />
+
+          {/* Section 3 — Characters in session */}
           <SessionCharacters
             session={session}
             allCharacters={allCharacters}
             onChange={handleChange}
           />
-
-          {/* Bottom row: enemies left, neutrals right, dice roller */}
-          <div className="session-detail__bottom">
-            <SessionEnemies session={session} onChange={handleChange} />
-            <SessionNeutrals session={session} onChange={handleChange} />
-          </div>
 
           {/* Section 2 — Dice Roller */}
           <DiceRoller session={session} onChange={handleChange} />

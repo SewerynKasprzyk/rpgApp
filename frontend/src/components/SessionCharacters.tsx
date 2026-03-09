@@ -11,7 +11,7 @@ import { v4 as uuid } from "uuid";
 import RoundCheckbox from "./RoundCheckbox";
 import CheckboxGroup from "./CheckboxGroup";
 
-function BackpackInput({ onAdd }: { onAdd: (text: string) => void }) {
+function SceneStatusInput({ onAdd }: { onAdd: (label: string) => void }) {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const commit = () => {
@@ -26,7 +26,7 @@ function BackpackInput({ onAdd }: { onAdd: (text: string) => void }) {
       ref={inputRef}
       className="session-char-card__backpack-input"
       value={value}
-      placeholder="Add item…"
+      placeholder="Add status…"
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } }}
     />
@@ -46,6 +46,33 @@ export default function SessionCharacters({
 }: Props) {
   const [dragOver, setDragOver] = useState(false);
 
+  const pressRef = useRef<{ timer: ReturnType<typeof setTimeout>; key: string } | null>(null);
+  const [pressingAbilityKey, setPressingAbilityKey] = useState<string | null>(null);
+  const didLongPressRef = useRef(false);
+
+  const startAbilityLongPress = (charId: string, themeIdx: number, abilityIdx: number) => {
+    const key = `${charId}-${themeIdx}-${abilityIdx}`;
+    if (pressRef.current) clearTimeout(pressRef.current.timer);
+    setPressingAbilityKey(key);
+    pressRef.current = {
+      key,
+      timer: setTimeout(() => {
+        setPressingAbilityKey(null);
+        pressRef.current = null;
+        didLongPressRef.current = true;
+        toggleAbilityCons(charId, themeIdx, abilityIdx);
+      }, 900),
+    };
+  };
+
+  const cancelAbilityLongPress = () => {
+    if (pressRef.current) {
+      clearTimeout(pressRef.current.timer);
+      pressRef.current = null;
+    }
+    setPressingAbilityKey(null);
+  };
+
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
@@ -62,13 +89,13 @@ export default function SessionCharacters({
         name: fullChar.name,
         portraitUrl: fullChar.portraitUrl ?? "",
         themeCards: fullChar.themeCards,
+        sceneStatuses: fullChar.sceneStatuses ?? [],
         currentStatuses: fullChar.currentStatuses,
         sectionQuestCheckboxes: fullChar.sectionQuestCheckboxes ?? {
           abandon: [false, false, false],
           improve: [false, false, false],
           milestone: [false, false, false],
         },
-        backpackTags: fullChar.backpackTags ?? [],
         companions: fullChar.companions ?? [],
         relationshipTags: fullChar.relationshipTags ?? [],
       };
@@ -137,22 +164,22 @@ export default function SessionCharacters({
     });
   };
 
-  const addBackpackItem = (charId: string, text: string) => {
-    if (!text.trim()) return;
+  const addSceneStatus = (charId: string, label: string) => {
+    if (!label.trim()) return;
     onChange({
       characters: session.characters.map((c) =>
         c.characterId === charId
-          ? { ...c, backpackTags: [...(c.backpackTags ?? []), text.trim()] }
+          ? { ...c, sceneStatuses: [...(c.sceneStatuses ?? []), { id: uuid(), label: label.trim() }] }
           : c
       ),
     });
   };
 
-  const removeBackpackItem = (charId: string, index: number) => {
+  const removeSceneStatus = (charId: string, statusId: string) => {
     onChange({
       characters: session.characters.map((c) =>
         c.characterId === charId
-          ? { ...c, backpackTags: (c.backpackTags ?? []).filter((_, i) => i !== index) }
+          ? { ...c, sceneStatuses: (c.sceneStatuses ?? []).filter((s) => s.id !== statusId) }
           : c
       ),
     });
@@ -185,6 +212,10 @@ export default function SessionCharacters({
     themeIndex: number,
     abilityIndex: number
   ) => {
+    if (didLongPressRef.current) {
+      didLongPressRef.current = false;
+      return;
+    }
     onChange({
       characters: session.characters.map((c) =>
         c.characterId === charId
@@ -197,7 +228,36 @@ export default function SessionCharacters({
                       abilities: tc.abilities.map((ab, j) => {
                         const ability = typeof ab === "string" ? { text: ab, isMarked: false } : ab;
                         return j === abilityIndex
-                          ? { ...ability, isMarked: !ability.isMarked }
+                          ? { ...ability, isMarked: !ability.isMarked, isCons: false }
+                          : ability;
+                      }),
+                    }
+                  : tc
+              ) as [any, any, any, any],
+            }
+          : c
+      ),
+    });
+  };
+
+  const toggleAbilityCons = (
+    charId: string,
+    themeIndex: number,
+    abilityIndex: number
+  ) => {
+    onChange({
+      characters: session.characters.map((c) =>
+        c.characterId === charId
+          ? {
+              ...c,
+              themeCards: c.themeCards.map((tc, i) =>
+                i === themeIndex
+                  ? {
+                      ...tc,
+                      abilities: tc.abilities.map((ab, j) => {
+                        const ability = typeof ab === "string" ? { text: ab, isMarked: false } : ab;
+                        return j === abilityIndex
+                          ? { ...ability, isCons: !(ability as any).isCons, isMarked: false }
                           : ability;
                       }),
                     }
@@ -332,8 +392,35 @@ export default function SessionCharacters({
 
       {session.characters.length === 0 && (
         <p className="session-characters__hint">
-          Drag characters from the sidebar to add them here
+          Drag characters from the list below to add them here
         </p>
+      )}
+
+      {/* Character picker row — native-drag chars into session */}
+      {allCharacters.filter(c => !session.characters.some(sc => sc.characterId === c.id)).length > 0 && (
+        <div className="session-char-picker">
+          <span className="session-char-picker__label">Drag to add:</span>
+          <div className="session-char-picker__list">
+            {allCharacters
+              .filter(c => !session.characters.some(sc => sc.characterId === c.id))
+              .map(c => (
+                <div
+                  key={c.id}
+                  className="session-char-picker__item"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("characterId", c.id);
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                >
+                  {c.portraitUrl
+                    ? <img className="session-char-picker__portrait" src={c.portraitUrl} alt={c.name} />
+                    : <div className="session-char-picker__portrait-placeholder">?</div>}
+                  <span className="session-char-picker__name">{c.name}</span>
+                </div>
+              ))}
+          </div>
+        </div>
       )}
 
       <div className="session-characters__grid">
@@ -363,28 +450,29 @@ export default function SessionCharacters({
                 )}
               </div>
 
+              {/* Scene Statuses — simple chips, synced from scene board */}
               <div className="session-char-card__section">
-                <span className="session-char-card__section-label">🎒 Backpack</span>
-                <div className="session-char-card__tags">
-                  {(sc.backpackTags ?? []).map((t, i) => (
-                    <span key={i} className="session-char-card__tag">
-                      {t}
+                <span className="session-char-card__section-label">🎯 Statuses</span>
+                <div className="session-char-card__chips">
+                  {(sc.sceneStatuses ?? []).map((s) => (
+                    <span key={s.id} className="session-char-card__chip">
+                      {s.label}
                       <button
-                        className="session-char-card__tag-remove"
-                        onClick={() => removeBackpackItem(sc.characterId, i)}
+                        className="session-char-card__chip-remove"
+                        onClick={() => removeSceneStatus(sc.characterId, s.id)}
                         title="Remove"
                       >×</button>
                     </span>
                   ))}
                 </div>
-                <BackpackInput onAdd={(text) => addBackpackItem(sc.characterId, text)} />
+                <SceneStatusInput onAdd={(label) => addSceneStatus(sc.characterId, label)} />
               </div>
 
               {(sc.companions ?? []).length > 0 && (
                 <div className="session-char-card__section">
                   <span className="session-char-card__section-label">🐾 Companions</span>
                   <div className="session-char-card__tags">
-                    {sc.companions.map((t, i) => (
+                    {(sc.companions ?? []).map((t, i) => (
                       <span key={i} className="session-char-card__tag">{t}</span>
                     ))}
                   </div>
@@ -395,7 +483,7 @@ export default function SessionCharacters({
                 <div className="session-char-card__section">
                   <span className="session-char-card__section-label">🤝 Relationships</span>
                   <div className="session-char-card__tags">
-                    {sc.relationshipTags.map((t, i) => (
+                    {(sc.relationshipTags ?? []).map((t, i) => (
                       <span key={i} className="session-char-card__tag">{t}</span>
                     ))}
                   </div>
@@ -483,9 +571,14 @@ export default function SessionCharacters({
                             key={j}
                             className={`session-char-card__ability ${
                               ability.isMarked ? "session-char-card__ability--marked" : ""
-                            } ${ability.isCrossed ? "session-char-card__ability--crossed" : ""}`}
+                            } ${(ability as any).isCons ? "session-char-card__ability--cons" : ""} ${
+                              ability.isCrossed ? "session-char-card__ability--crossed" : ""
+                            } ${pressingAbilityKey === `${sc.characterId}-${i}-${j}` ? "session-char-card__ability--pressing" : ""}`}
                             onClick={() => toggleAbilityMark(sc.characterId, i, j)}
-                            title="Click text to glow, click icon to cross out"
+                            onPointerDown={(e) => { e.stopPropagation(); startAbilityLongPress(sc.characterId, i, j); }}
+                            onPointerUp={(e) => { e.stopPropagation(); cancelAbilityLongPress(); }}
+                            onPointerLeave={cancelAbilityLongPress}
+                            title="Click to mark pros (glow) | Hold 1s for cons (violet)"
                           >
                             {ability.text}
                             <span

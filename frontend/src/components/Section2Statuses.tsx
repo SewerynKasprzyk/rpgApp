@@ -8,8 +8,27 @@ interface Props {
 }
 
 export default function Section2Statuses({ character, onChange }: Props) {
+  const sceneStatuses = character.sceneStatuses ?? [];
   const statuses = character.currentStatuses;
 
+  /* ── Scene Statuses (simple chips) ── */
+  const addSceneStatus = () => {
+    onChange({
+      sceneStatuses: [...sceneStatuses, { id: uuid(), label: "" }],
+    });
+  };
+
+  const updateSceneStatus = (id: string, label: string) => {
+    onChange({
+      sceneStatuses: sceneStatuses.map((s) => (s.id === id ? { ...s, label } : s)),
+    });
+  };
+
+  const removeSceneStatus = (id: string) => {
+    onChange({ sceneStatuses: sceneStatuses.filter((s) => s.id !== id) });
+  };
+
+  /* ── Current Statuses (tag + note + checkboxes) ── */
   const updateStatus = (id: string, patch: Partial<StatusTag>) => {
     const updated = statuses.map((s) =>
       s.id === id ? { ...s, ...patch } : s
@@ -51,7 +70,32 @@ export default function Section2Statuses({ character, onChange }: Props) {
 
   return (
     <div className="section section2">
+      {/* Scene Statuses — simple label chips */}
       <h3 className="section__title">Current Statuses</h3>
+      <div className="scene-status-list">
+        {sceneStatuses.map((s) => (
+          <div key={s.id} className="scene-status-chip-row">
+            <input
+              className="status-box__tag"
+              value={s.label}
+              placeholder="Status label"
+              onChange={(e) => updateSceneStatus(s.id, e.target.value)}
+            />
+            <button
+              type="button"
+              className="status-box__remove"
+              onClick={() => removeSceneStatus(s.id)}
+              title="Remove"
+            >×</button>
+          </div>
+        ))}
+      </div>
+      <button type="button" className="add-slot-btn" onClick={addSceneStatus}>
+        + Add Status
+      </button>
+
+      {/* Current Statuses — tag + note + checkboxes */}
+      <h3 className="section__title" style={{ marginTop: "1rem" }}>Current Tags</h3>
       <div className="status-list">
         {statuses.map((s) => (
           <div key={s.id} className="status-box">

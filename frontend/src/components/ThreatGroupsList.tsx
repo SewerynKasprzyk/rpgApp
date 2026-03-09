@@ -1,5 +1,6 @@
 ﻿import React, { useState, useRef, useEffect } from "react";
 import { ThreatGroup } from "@rpg/shared";
+import DraggableSourceItem from "./DraggableSourceItem";
 
 interface Props {
   groups: ThreatGroup[];
@@ -122,8 +123,8 @@ export default function ThreatGroupsSidebar({
                   <div className={`tg-group__threats${isExpanded ? " tg-group__threats--open" : ""}`}>
                     <div className="tg-group__threats__inner">
                       {group.threats.map(threat => (
+                        <DraggableSourceItem key={threat.id} id={`adv-threat-${threat.id}`} sourceType="advThreat" sourceId={threat.id} label={threat.name} payload={threat as unknown as Record<string, unknown>}>
                         <div
-                          key={threat.id}
                           className={`tg-threat-item${selectedThreatId === threat.id && isActiveGroup ? " tg-threat-item--active" : ""}`}
                           onClick={e => { e.stopPropagation(); onSelectThreat(group.id, threat.id); }}
                         >
@@ -142,6 +143,7 @@ export default function ThreatGroupsSidebar({
                             ×
                           </button>
                         </div>
+                        </DraggableSourceItem>
                       ))}
                       <button
                         type="button"

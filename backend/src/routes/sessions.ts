@@ -33,6 +33,8 @@ router.post("/", async (req: Request, res: Response) => {
     enemies: body.enemies ?? [],
     neutrals: body.neutrals ?? [],
     diceHistory: body.diceHistory ?? [],
+    scenes: body.scenes ?? [],
+    gmElements: body.gmElements ?? [],
   });
 
   res.status(201).json(session);

@@ -1,10 +1,11 @@
 import { useEffect } from "react";
-import { Session } from "@rpg/shared";
+import { Session, UpdateSessionInput } from "@rpg/shared";
 import { subscribeSession } from "../services/realtimeClient";
 
 export function useRealtimeSession(
   sessionId: string | undefined,
-  setSession: React.Dispatch<React.SetStateAction<Session | null>>
+  setSession: React.Dispatch<React.SetStateAction<Session | null>>,
+  getPending?: () => UpdateSessionInput
 ) {
   useEffect(() => {
     if (!sessionId) return;
@@ -14,7 +15,12 @@ export function useRealtimeSession(
         event.type === "session_updated" &&
         event.session.id === sessionId
       ) {
-        setSession((prev) => (prev ? { ...prev, ...event.session } : event.session));
+        setSession((prev) => {
+          // Re-apply any pending local changes on top of the server state so
+          // our optimistic updates are never clobbered by a stale WS event.
+          const pending = getPending?.() ?? {};
+          return prev ? { ...prev, ...event.session, ...pending } : event.session;
+        });
       }
       if (
         event.type === "session_deleted" &&
@@ -25,5 +31,5 @@ export function useRealtimeSession(
     });
 
     return unsubscribe;
-  }, [sessionId, setSession]);
+  }, [sessionId, setSession, getPending]);
 }
