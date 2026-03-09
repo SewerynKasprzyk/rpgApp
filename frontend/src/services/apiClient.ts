@@ -46,6 +46,19 @@ export async function updateCharacter(
   return handleResponse<Character>(res);
 }
 
+/**
+ * Best-effort save using keepalive fetch — survives page unload / browser refresh.
+ * Ignores the response (fire-and-forget).
+ */
+export function beaconUpdateCharacter(id: string, input: UpdateCharacterInput): void {
+  fetch(`${BASE}/characters/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    keepalive: true,
+  }).catch(() => {});
+}
+
 export async function deleteCharacter(id: string): Promise<void> {
   const res = await fetch(`${BASE}/characters/${encodeURIComponent(id)}`, {
     method: "DELETE",

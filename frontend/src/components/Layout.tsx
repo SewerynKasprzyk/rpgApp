@@ -70,15 +70,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     /* ── Case A: Repositioning an existing scene item ── */
     if (dragData.isSceneItem && dragData.instanceId && dragData.sceneId && activeSession) {
       const delta = event.delta;
+      // Clamp positions so cards can't leave the canvas boundaries
+      const canvasEl = document.querySelector('.main-board__canvas') as HTMLElement | null;
+      const canvasW = canvasEl?.clientWidth ?? 2000;
+      const canvasH = canvasEl?.clientHeight ?? 1200;
       const scenes = (activeSession.scenes ?? []).map((scene) => {
         if (scene.id !== dragData.sceneId) return scene;
         return {
           ...scene,
-          items: (scene.items ?? []).map((item) =>
-            item.instanceId === dragData.instanceId
-              ? { ...item, x: item.x + delta.x, y: item.y + delta.y }
-              : item
-          ),
+          items: (scene.items ?? []).map((item) => {
+            if (item.instanceId !== dragData.instanceId) return item;
+            const newX = Math.max(0, Math.min(item.x + delta.x, canvasW - item.w));
+            const newY = Math.max(0, item.y + delta.y);
+            return { ...item, x: newX, y: newY };
+          }),
         };
       });
       activeOnChange({ scenes });
@@ -185,7 +190,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 updatedCharSourceId = item.sourceId;
                 updatedCharCurrentStatuses = updated;
               }
-            } else if (item.sourceType === "simpleLocation") {
+            } else if (item.sourceType === "simpleLocation" || item.sourceType === "advLocation") {
               const goesToStatusesLoc = forceStatuses || (!forceTags && kind === "status");
               if (kind === "npc") {
                 const existing = (snapshot.npcs as Array<{ id: string; name: string }> | undefined) ?? [];

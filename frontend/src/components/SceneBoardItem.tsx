@@ -21,8 +21,8 @@ interface ThreatSnap {
   statuses?: StatusSnap[]; moves?: MoveSnap[];
 }
 
-interface BoxStatusSnap { id: string; label: string; notes: string[]; }
-interface BoxTagSnap    { id: string; label: string; note: string; checkboxes: boolean[]; }
+interface BoxStatusSnap { id: string; label: string; notes: string[]; isGlowing?: boolean; isCons?: boolean; }
+interface BoxTagSnap    { id: string; label: string; note: string; checkboxes: boolean[]; isGlowing?: boolean; isCons?: boolean; }
 interface NpcSnap       { id: string; name: string; portraitUrl: string; statuses: any[]; tags?: Array<{id: string; label: string; note: string; checkboxes: boolean[]}>; }
 interface BoxSnap       { id: string; title: string; statuses: BoxStatusSnap[]; tags: BoxTagSnap[]; npcs: NpcSnap[]; }
 
@@ -37,7 +37,7 @@ interface CharSnap {
   currentStatuses?: Array<{ id: string; tag: string; note: string; checkboxes: [boolean,boolean,boolean,boolean,boolean,boolean] }>; // TagRows — synced to SessionCharacter.currentStatuses
 }
 
-interface SimpleSnap { label?: string; note?: string; checkboxCount?: number; kind?: string; portraitUrl?: string; statuses?: Array<{id: string; label: string}>; tags?: TagSnap[]; }
+interface SimpleSnap { label?: string; note?: string; checkboxCount?: number; kind?: string; portraitUrl?: string; statuses?: StatusSnap[]; tags?: TagSnap[]; }
 
 /* ── Small drop-zone strip for character cards (generic) ── */
 function NestedDropZone({ instanceId, sceneId }: { instanceId: string; sceneId: string }) {
@@ -1078,8 +1078,8 @@ function AdvLocationCard({
       {/* ── Sections 2 & 3 side by side ── */}
       <div className="sbi__two-col">
 
-        {/* LEFT — Section 2: Description + Statuses */}
-        <div className="sbi__col sbi__col--left">
+        {/* LEFT — Section 2: Description + Statuses (droppable) */}
+        <ThreatStatusesZone instanceId={item.instanceId} sceneId={sceneId}>
           {snap.description && (
             <>
               <span className="sbi__section-label">Description</span>
@@ -1100,7 +1100,7 @@ function AdvLocationCard({
               </div>
             </div>
           )}
-        </div>
+        </ThreatStatusesZone>
 
         {/* RIGHT — Section 3: Areas */}
         <div className="sbi__col sbi__col--right">

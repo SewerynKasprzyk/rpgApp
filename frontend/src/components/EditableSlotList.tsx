@@ -8,6 +8,8 @@ interface Props {
 }
 
 export default function EditableSlotList({ items, onChange, placeholder, editMode = true }: Props) {
+  // Fallback: ensure items is always an array
+  const safeItems = items ?? [];
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -54,7 +56,7 @@ export default function EditableSlotList({ items, onChange, placeholder, editMod
 
   return (
     <div className="editable-slot-list">
-      {items.map((item, i) => (
+      {safeItems.map((item, i) => (
         <div key={i} className="editable-slot">
           {editingIndex === i ? (
             <input

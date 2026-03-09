@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Session, UpdateSessionInput, Character } from "@rpg/shared";
 import { fetchSession, updateSession, fetchCharacters, updateCharacter } from "../services/apiClient";
-import { useRealtimeSession } from "../hooks/useRealtimeSession";
+import { useRealtimeCharacters } from "../hooks/useRealtimeCharacters";
+import { subscribe, subscribeSession } from "../services/realtimeClient";
 import SessionCharacterSidebar from "../components/SessionCharacterSidebar";
 import SessionCharacters from "../components/SessionCharacters";
 import DiceRoller from "../components/DiceRoller";
@@ -28,15 +29,132 @@ export default function SessionDetail() {
   const charSaveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const { register } = useSessionContext();
-  const getPending = useCallback(() => pendingUpdates.current, []);
 
-  useRealtimeSession(id, setSession, getPending);
+  // Keep the allCharacters list in sync so drag-and-drop always uses fresh data
+  useRealtimeCharacters(setAllCharacters);
+
+  // Track character IDs recently freshened by character_updated events.
+  // These are protected from being overwritten by stale session_updated events.
+  const freshCharIds = useRef<Set<string>>(new Set());
+  const freshCharTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  // When a character in this session is updated elsewhere (e.g. character editor),
+  // merge the fresh data into the session character snapshot immediately.
+  useEffect(() => {
+    const unsubscribe = subscribe((event) => {
+      if (event.type !== "character_updated") return;
+      const fresh = event.character;
+      setSession((prev) => {
+        if (!prev) return prev;
+        const idx = prev.characters.findIndex((c) => c.characterId === fresh.id);
+        if (idx === -1) return prev;
+        const sc = prev.characters[idx];
+        const merged = {
+          ...sc,
+          name: fresh.name,
+          portraitUrl: fresh.portraitUrl ?? sc.portraitUrl,
+          themeCards: fresh.themeCards ?? sc.themeCards,
+          sceneStatuses: fresh.sceneStatuses ?? sc.sceneStatuses,
+          currentStatuses: fresh.currentStatuses ?? sc.currentStatuses,
+          sectionQuestCheckboxes: fresh.sectionQuestCheckboxes ?? sc.sectionQuestCheckboxes,
+          companions: fresh.companions ?? sc.companions,
+          relationshipTags: fresh.relationshipTags ?? sc.relationshipTags,
+        };
+        const updatedChars = [...prev.characters];
+        updatedChars[idx] = merged;
+
+        // Protect this character from being overwritten by a stale session_updated
+        freshCharIds.current.add(fresh.id);
+        const timer = freshCharTimers.current.get(fresh.id);
+        if (timer) clearTimeout(timer);
+        freshCharTimers.current.set(
+          fresh.id,
+          setTimeout(() => {
+            freshCharIds.current.delete(fresh.id);
+            freshCharTimers.current.delete(fresh.id);
+          }, 3000)
+        );
+
+        // Patch any pending characters so flushed saves include fresh data
+        if (pendingUpdates.current.characters) {
+          pendingUpdates.current = {
+            ...pendingUpdates.current,
+            characters: pendingUpdates.current.characters.map((pc) =>
+              pc.characterId === fresh.id ? merged : pc
+            ),
+          };
+        }
+
+        return { ...prev, characters: updatedChars };
+      });
+    });
+    return unsubscribe;
+  }, []);
+
+  // Listen for session_updated events, protecting recently-updated characters
+  // from being overwritten by stale events (race between character-editor saves
+  // and session-page flushes).
+  useEffect(() => {
+    if (!id) return;
+    const unsubscribe = subscribeSession((event) => {
+      if (event.type === "session_updated" && event.session.id === id) {
+        setSession((prev) => {
+          if (!prev) return event.session;
+          const pending = pendingUpdates.current;
+
+          const mergedChars = event.session.characters.map((serverChar) => {
+            // If this character was just updated via character_updated,
+            // keep prev's version to avoid stale overwrite
+            if (freshCharIds.current.has(serverChar.characterId)) {
+              const prevChar = prev.characters.find(
+                (c) => c.characterId === serverChar.characterId
+              );
+              return prevChar ?? serverChar;
+            }
+            // Apply any pending local edits on top of server data
+            const pendingChar = pending.characters?.find(
+              (pc) => pc.characterId === serverChar.characterId
+            );
+            return pendingChar
+              ? { ...serverChar, ...pendingChar }
+              : serverChar;
+          });
+          // Include any pending characters not yet on server
+          if (pending.characters) {
+            for (const pc of pending.characters) {
+              if (!mergedChars.some((c) => c.characterId === pc.characterId)) {
+                mergedChars.push(pc);
+              }
+            }
+          }
+
+          const { characters: _pc, ...pendingRest } = pending;
+          return { ...prev, ...event.session, ...pendingRest, characters: mergedChars };
+        });
+      }
+      if (event.type === "session_deleted" && event.sessionId === id) {
+        setSession(null);
+      }
+    });
+    return unsubscribe;
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
     Promise.all([fetchSession(id), fetchCharacters()])
       .then(([s, chars]) => {
-        setSession(s);
+        // Merge fresh character statuses into session snapshots so that edits
+        // made on the character sheet page are reflected here immediately.
+        const mergedChars = s.characters.map((sc) => {
+          const fresh = chars.find((c) => c.id === sc.characterId);
+          if (!fresh) return sc;
+          return {
+            ...sc,
+            currentStatuses: fresh.currentStatuses ?? [],
+            sceneStatuses: fresh.sceneStatuses ?? [],
+          };
+        });
+        setSession({ ...s, characters: mergedChars });
         setAllCharacters(chars);
       })
       .catch((err) => setError(err.message))
@@ -90,12 +208,18 @@ export default function SessionDetail() {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(flushSave, DEBOUNCE_MS);
 
-      // ── Problem 1: Persist sceneStatuses / currentStatuses changes to character DB ──
+      // Persist session-character changes back to character DB.
+      // The session service no longer syncs back (to avoid destructive races),
+      // so we do it here on the client side.
       if (updates.characters) {
         for (const sc of updates.characters) {
           const patch: Record<string, unknown> = {};
           if (sc.sceneStatuses !== undefined) patch.sceneStatuses = sc.sceneStatuses;
           if (sc.currentStatuses !== undefined) patch.currentStatuses = sc.currentStatuses;
+          if (sc.themeCards !== undefined) patch.themeCards = sc.themeCards;
+          if (sc.sectionQuestCheckboxes !== undefined) patch.sectionQuestCheckboxes = sc.sectionQuestCheckboxes;
+          if (sc.companions !== undefined) patch.companions = sc.companions;
+          if (sc.relationshipTags !== undefined) patch.relationshipTags = sc.relationshipTags;
           if (Object.keys(patch).length === 0) continue;
           const prev = pendingCharUpdates.current.get(sc.characterId) ?? {};
           pendingCharUpdates.current.set(sc.characterId, { ...prev, ...patch });

@@ -9,7 +9,7 @@ interface Props {
 
 export default function Section2Statuses({ character, onChange }: Props) {
   const sceneStatuses = character.sceneStatuses ?? [];
-  const statuses = character.currentStatuses;
+  const statuses = character.currentStatuses ?? [];
 
   /* ── Scene Statuses (simple chips) ── */
   const addSceneStatus = () => {

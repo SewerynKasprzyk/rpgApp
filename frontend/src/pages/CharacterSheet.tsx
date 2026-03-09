@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Character, UpdateCharacterInput } from "@rpg/shared";
-import { fetchCharacter, updateCharacter } from "../services/apiClient";
+import { fetchCharacter, updateCharacter, beaconUpdateCharacter } from "../services/apiClient";
 import { useRealtimeCharacter } from "../hooks/useRealtimeCharacter";
 import Section1HeroCard from "../components/Section1HeroCard";
 import Section2Statuses from "../components/Section2Statuses";
@@ -89,13 +89,27 @@ export default function CharacterSheet() {
     [flushSave]
   );
 
-  // Flush on unmount
+  // Flush on unmount (e.g. navigating away via React Router)
   useEffect(() => {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       flushSave();
     };
   }, [flushSave]);
+
+  // Beacon-save on browser refresh / tab close — keepalive fetch survives page unload
+  useEffect(() => {
+    if (!id) return;
+    const handleBeforeUnload = () => {
+      if (Object.keys(pendingUpdates.current).length === 0) return;
+      const updates = { ...pendingUpdates.current };
+      pendingUpdates.current = {};
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      beaconUpdateCharacter(id, updates);
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [id]);
 
   if (loading) return <p>Loading…</p>;
   if (error) return <p className="error">{error}</p>;

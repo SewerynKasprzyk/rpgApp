@@ -44,7 +44,10 @@ export async function updateCharacter(
                     ...sc,
                     name: updated.name ?? sc.name,
                     portraitUrl: updated.portraitUrl ?? sc.portraitUrl,
-                    backpackTags: updated.backpackTags ?? sc.backpackTags,
+                    themeCards: updated.themeCards ?? sc.themeCards,
+                    sceneStatuses: updated.sceneStatuses ?? sc.sceneStatuses,
+                    currentStatuses: updated.currentStatuses ?? sc.currentStatuses,
+                    sectionQuestCheckboxes: updated.sectionQuestCheckboxes ?? sc.sectionQuestCheckboxes,
                     companions: updated.companions ?? sc.companions,
                     relationshipTags: updated.relationshipTags ?? sc.relationshipTags,
                   }

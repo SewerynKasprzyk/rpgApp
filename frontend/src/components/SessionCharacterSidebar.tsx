@@ -46,7 +46,12 @@ export default function SessionCharacterSidebar({
                 sourceType="character"
                 sourceId={char.id}
                 label={char.name}
-                payload={char as unknown as Record<string, unknown>}
+                payload={{
+                  name: char.name,
+                  portraitUrl: char.portraitUrl,
+                  statuses: char.sceneStatuses ?? [],
+                  currentStatuses: char.currentStatuses ?? [],
+                }}
               >
                 <div
                   className={`session-sidebar__char ${

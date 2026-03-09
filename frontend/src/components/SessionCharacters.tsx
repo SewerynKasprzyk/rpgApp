@@ -50,6 +50,11 @@ export default function SessionCharacters({
   const [pressingAbilityKey, setPressingAbilityKey] = useState<string | null>(null);
   const didLongPressRef = useRef(false);
 
+  /* ── Generic long-press helper for chips / status-boxes ── */
+  const chipPressRef = useRef<{ timer: ReturnType<typeof setTimeout>; key: string } | null>(null);
+  const [pressingChipKey, setPressingChipKey] = useState<string | null>(null);
+  const chipDidLongRef = useRef(false);
+
   const startAbilityLongPress = (charId: string, themeIdx: number, abilityIdx: number) => {
     const key = `${charId}-${themeIdx}-${abilityIdx}`;
     if (pressRef.current) clearTimeout(pressRef.current.timer);
@@ -90,7 +95,7 @@ export default function SessionCharacters({
         portraitUrl: fullChar.portraitUrl ?? "",
         themeCards: fullChar.themeCards,
         sceneStatuses: fullChar.sceneStatuses ?? [],
-        currentStatuses: fullChar.currentStatuses,
+        currentStatuses: fullChar.currentStatuses ?? [],
         sectionQuestCheckboxes: fullChar.sectionQuestCheckboxes ?? {
           abandon: [false, false, false],
           improve: [false, false, false],
@@ -121,7 +126,7 @@ export default function SessionCharacters({
         c.characterId === charId
           ? {
               ...c,
-              currentStatuses: c.currentStatuses.map((s) =>
+              currentStatuses: (c.currentStatuses ?? []).map((s) =>
                 s.id === statusId ? { ...s, ...patch } : s
               ),
             }
@@ -137,7 +142,7 @@ export default function SessionCharacters({
           ? {
               ...c,
               currentStatuses: [
-                ...c.currentStatuses,
+                ...(c.currentStatuses ?? []),
                 {
                   id: uuid(),
                   tag: "",
@@ -157,7 +162,7 @@ export default function SessionCharacters({
         c.characterId === charId
           ? {
               ...c,
-              currentStatuses: c.currentStatuses.filter((s) => s.id !== statusId),
+              currentStatuses: (c.currentStatuses ?? []).filter((s) => s.id !== statusId),
             }
           : c
       ),
@@ -180,6 +185,81 @@ export default function SessionCharacters({
       characters: session.characters.map((c) =>
         c.characterId === charId
           ? { ...c, sceneStatuses: (c.sceneStatuses ?? []).filter((s) => s.id !== statusId) }
+          : c
+      ),
+    });
+  };
+
+  /* ── Glow / Cons for scene status chips ── */
+  const toggleSceneStatusGlow = (charId: string, statusId: string) => {
+    if (chipDidLongRef.current) { chipDidLongRef.current = false; return; }
+    onChange({
+      characters: session.characters.map((c) =>
+        c.characterId === charId
+          ? { ...c, sceneStatuses: (c.sceneStatuses ?? []).map((s) =>
+              s.id === statusId ? { ...s, isGlowing: !(s as any).isGlowing, isCons: false } : s
+            ) }
+          : c
+      ),
+    });
+  };
+
+  const toggleSceneStatusCons = (charId: string, statusId: string) => {
+    onChange({
+      characters: session.characters.map((c) =>
+        c.characterId === charId
+          ? { ...c, sceneStatuses: (c.sceneStatuses ?? []).map((s) =>
+              s.id === statusId ? { ...s, isCons: !(s as any).isCons, isGlowing: false } : s
+            ) }
+          : c
+      ),
+    });
+  };
+
+  const startChipLongPress = (key: string, onLong: () => void) => {
+    if (chipPressRef.current) clearTimeout(chipPressRef.current.timer);
+    chipDidLongRef.current = false;
+    setPressingChipKey(key);
+    chipPressRef.current = {
+      key,
+      timer: setTimeout(() => {
+        setPressingChipKey(null);
+        chipPressRef.current = null;
+        chipDidLongRef.current = true;
+        onLong();
+      }, 700),
+    };
+  };
+
+  const cancelChipLongPress = () => {
+    if (chipPressRef.current) {
+      clearTimeout(chipPressRef.current.timer);
+      chipPressRef.current = null;
+    }
+    setPressingChipKey(null);
+  };
+
+  /* ── Glow / Cons for current status tags ── */
+  const toggleStatusGlow = (charId: string, statusId: string) => {
+    if (chipDidLongRef.current) { chipDidLongRef.current = false; return; }
+    onChange({
+      characters: session.characters.map((c) =>
+        c.characterId === charId
+          ? { ...c, currentStatuses: (c.currentStatuses ?? []).map((s) =>
+              s.id === statusId ? { ...s, isGlowing: !(s as any).isGlowing, isCons: false } : s
+            ) }
+          : c
+      ),
+    });
+  };
+
+  const toggleStatusCons = (charId: string, statusId: string) => {
+    onChange({
+      characters: session.characters.map((c) =>
+        c.characterId === charId
+          ? { ...c, currentStatuses: (c.currentStatuses ?? []).map((s) =>
+              s.id === statusId ? { ...s, isCons: !(s as any).isCons, isGlowing: false } : s
+            ) }
           : c
       ),
     });
@@ -363,7 +443,7 @@ export default function SessionCharacters({
   ) => {
     const char = session.characters.find((c) => c.characterId === charId);
     if (!char) return;
-    const status = char.currentStatuses.find((s) => s.id === statusId);
+    const status = (char.currentStatuses ?? []).find((s) => s.id === statusId);
     if (!status) return;
     const cb: [boolean, boolean, boolean, boolean, boolean, boolean] = [
       ...status.checkboxes,
@@ -454,16 +534,35 @@ export default function SessionCharacters({
               <div className="session-char-card__section">
                 <span className="session-char-card__section-label">🎯 Statuses</span>
                 <div className="session-char-card__chips">
-                  {(sc.sceneStatuses ?? []).map((s) => (
-                    <span key={s.id} className="session-char-card__chip">
-                      {s.label}
-                      <button
-                        className="session-char-card__chip-remove"
-                        onClick={() => removeSceneStatus(sc.characterId, s.id)}
-                        title="Remove"
-                      >×</button>
-                    </span>
-                  ))}
+                  {(sc.sceneStatuses ?? []).map((s) => {
+                    const chipKey = `chip-${sc.characterId}-${s.id}`;
+                    const isGlowing = (s as any).isGlowing;
+                    const isCons = (s as any).isCons;
+                    const stateClass = isCons
+                      ? " session-char-card__chip--cons"
+                      : isGlowing
+                        ? " session-char-card__chip--glowing"
+                        : "";
+                    const pressingClass = pressingChipKey === chipKey ? " session-char-card__chip--pressing" : "";
+                    return (
+                      <span
+                        key={s.id}
+                        className={`session-char-card__chip${stateClass}${pressingClass}`}
+                        onPointerDown={(e) => { e.stopPropagation(); startChipLongPress(chipKey, () => toggleSceneStatusCons(sc.characterId, s.id)); }}
+                        onPointerUp={(e) => { e.stopPropagation(); cancelChipLongPress(); }}
+                        onPointerLeave={cancelChipLongPress}
+                        onClick={() => toggleSceneStatusGlow(sc.characterId, s.id)}
+                        title="Click = glow (pros) | Hold = cons (violet)"
+                      >
+                        {s.label}
+                        <button
+                          className="session-char-card__chip-remove"
+                          onClick={(e) => { e.stopPropagation(); removeSceneStatus(sc.characterId, s.id); }}
+                          title="Remove"
+                        >×</button>
+                      </span>
+                    );
+                  })}
                 </div>
                 <SceneStatusInput onAdd={(label) => addSceneStatus(sc.characterId, label)} />
               </div>
@@ -493,51 +592,72 @@ export default function SessionCharacters({
               {/* Statuses */}
               <div className="session-char-card__section-label" style={{ marginTop: "0.25rem" }}>🏷️ Current Statuses</div>
               <div className="status-list">
-                {sc.currentStatuses.map((s) => (
-                  <div key={s.id} className="status-box">
-                    <div className="status-box__top">
-                      <input
-                        className="status-box__tag"
-                        value={s.tag}
-                        placeholder="Tag"
-                        onChange={(e) =>
-                          updateStatus(sc.characterId, s.id, {
-                            tag: e.target.value,
-                          })
-                        }
-                      />
-                      <input
-                        className="status-box__note"
-                        value={s.note}
-                        placeholder="Note"
-                        onChange={(e) =>
-                          updateStatus(sc.characterId, s.id, {
-                            note: e.target.value,
-                          })
-                        }
-                      />
-                      <button
-                        type="button"
-                        className="status-box__remove"
-                        onClick={() => removeStatus(sc.characterId, s.id)}
-                        title="Remove status"
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <div className="status-box__checkboxes">
-                      {s.checkboxes.map((v, i) => (
-                        <RoundCheckbox
-                          key={i}
-                          checked={v}
-                          onChange={() =>
-                            toggleCheckbox(sc.characterId, s.id, i)
+                {(sc.currentStatuses ?? []).map((s) => {
+                  const tagKey = `tag-${sc.characterId}-${s.id}`;
+                  const isGlowing = (s as any).isGlowing;
+                  const isCons = (s as any).isCons;
+                  const stateClass = isCons
+                    ? " status-box--cons"
+                    : isGlowing
+                      ? " status-box--glowing"
+                      : "";
+                  const pressingClass = pressingChipKey === tagKey ? " status-box--pressing" : "";
+                  return (
+                    <div
+                      key={s.id}
+                      className={`status-box${stateClass}${pressingClass}`}
+                      onPointerDown={(e) => { e.stopPropagation(); startChipLongPress(tagKey, () => toggleStatusCons(sc.characterId, s.id)); }}
+                      onPointerUp={(e) => { e.stopPropagation(); cancelChipLongPress(); }}
+                      onPointerLeave={cancelChipLongPress}
+                      onClick={() => toggleStatusGlow(sc.characterId, s.id)}
+                      title="Click = glow (pros) | Hold = cons (violet)"
+                    >
+                      <div className="status-box__top">
+                        <input
+                          className="status-box__tag"
+                          value={s.tag}
+                          placeholder="Tag"
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) =>
+                            updateStatus(sc.characterId, s.id, {
+                              tag: e.target.value,
+                            })
                           }
                         />
-                      ))}
+                        <input
+                          className="status-box__note"
+                          value={s.note}
+                          placeholder="Note"
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) =>
+                            updateStatus(sc.characterId, s.id, {
+                              note: e.target.value,
+                            })
+                          }
+                        />
+                        <button
+                          type="button"
+                          className="status-box__remove"
+                          onClick={(e) => { e.stopPropagation(); removeStatus(sc.characterId, s.id); }}
+                          title="Remove status"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <div className="status-box__checkboxes" onClick={(e) => e.stopPropagation()}>
+                        {s.checkboxes.map((v, i) => (
+                          <RoundCheckbox
+                            key={i}
+                            checked={v}
+                            onChange={() =>
+                              toggleCheckbox(sc.characterId, s.id, i)
+                            }
+                          />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <button
                 type="button"
