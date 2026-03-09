@@ -30,8 +30,6 @@ router.post("/", async (req: Request, res: Response) => {
     name: body.name,
     description: body.description ?? "",
     characters: body.characters ?? [],
-    enemies: body.enemies ?? [],
-    neutrals: body.neutrals ?? [],
     diceHistory: body.diceHistory ?? [],
     scenes: body.scenes ?? [],
     gmElements: body.gmElements ?? [],

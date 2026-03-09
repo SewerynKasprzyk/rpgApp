@@ -1,1 +1,1 @@
-export type { Session, SessionCharacter, SessionEnemy, SessionNeutral, DiceRollResult, CreateSessionInput, UpdateSessionInput } from "@rpg/shared";
+export type { Session, SessionCharacter, DiceRollResult, CreateSessionInput, UpdateSessionInput } from "@rpg/shared";

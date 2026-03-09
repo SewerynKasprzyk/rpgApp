@@ -73,7 +73,10 @@ export interface Character {
   sectionQuests: QuestEntry[];
   sectionQuestCheckboxes: QuestCheckboxes;
 
-  // Current Statuses (Section 2)
+  // Scene Statuses — simple label chips (Section 2a)
+  sceneStatuses: { id: string; label: string }[];
+
+  // Current Statuses — tag+note+checkboxes (Section 2b)
   currentStatuses: StatusTag[];
 
   // Theme Cards (Section 3)
@@ -100,6 +103,7 @@ export function createDefaultCharacter(): Partial<Character> {
       improve: [false, false, false],
       milestone: [false, false, false],
     },
+    sceneStatuses: [],
     currentStatuses: [],
     themeCards: [
       { icon: null, type: "", abilities: [], downsides: [], quests: [], checkboxes: { abandon: [false, false, false], improve: [false, false, false], milestone: [false, false, false] } },

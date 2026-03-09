@@ -49,25 +49,11 @@ export interface SessionCharacter {
   name: string;
   portraitUrl: string;
   themeCards: [ThemeCard, ThemeCard, ThemeCard, ThemeCard];
+  sceneStatuses: { id: string; label: string }[];
   currentStatuses: StatusTag[];
   sectionQuestCheckboxes: QuestCheckboxes;
-  backpackTags: string[];
-  companions: string[];
-  relationshipTags: string[];
-}
-
-/** Enemy entity in the session (Section 4) */
-export interface SessionEnemy {
-  id: string;
-  name: string;
-  statuses: StatusTag[];
-}
-
-/** Neutral character in the session (Section 5) */
-export interface SessionNeutral {
-  id: string;
-  name: string;
-  statuses: StatusTag[];
+  companions?: string[];
+  relationshipTags?: string[];
 }
 
 /** Dice roll result record */
@@ -83,8 +69,6 @@ export interface Session {
   name: string;
   description: string;
   characters: SessionCharacter[];
-  enemies: SessionEnemy[];
-  neutrals: SessionNeutral[];
   diceHistory: DiceRollResult[];
   scenes: BoardScene[];
   gmElements?: GmElement[];
