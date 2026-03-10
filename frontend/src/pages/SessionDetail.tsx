@@ -19,6 +19,7 @@ export default function SessionDetail() {
   const [allCharacters, setAllCharacters] = useState<Character[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingUpdates = useRef<UpdateSessionInput>({});
   // Ref mirrors current session so handleChange can read it synchronously
@@ -98,6 +99,12 @@ export default function SessionDetail() {
     if (!id) return;
     const unsubscribe = subscribeSession((event) => {
       if (event.type === "session_updated" && event.session.id === id) {
+        // Auto-switch to the current scene when another client sets it
+        if (event.session.currentSceneId) {
+          setActiveSceneId((prev) =>
+            prev !== event.session.currentSceneId ? event.session.currentSceneId! : prev
+          );
+        }
         setSession((prev) => {
           if (!prev) return event.session;
           const pending = pendingUpdates.current;
@@ -156,6 +163,8 @@ export default function SessionDetail() {
         });
         setSession({ ...s, characters: mergedChars });
         setAllCharacters(chars);
+        // Init active scene from current or first
+        setActiveSceneId(s.currentSceneId ?? (s.scenes?.length > 0 ? s.scenes[0].id : null));
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -286,6 +295,14 @@ export default function SessionDetail() {
             scenes={session.scenes ?? []}
             session={session}
             onChange={handleChange}
+            activeSceneId={activeSceneId}
+            onActiveSceneChange={setActiveSceneId}
+            onSetCurrentScene={(sceneId) => {
+              // Optimistic local update
+              setSession(prev => prev ? { ...prev, currentSceneId: sceneId } : prev);
+              // Flush directly to server (bypass debounce) so all clients switch immediately
+              if (id) updateSession(id, { currentSceneId: sceneId }).catch(err => console.error('Set current scene failed:', err));
+            }}
           />
 
           {/* Section 3 — Characters in session */}
@@ -296,7 +313,7 @@ export default function SessionDetail() {
           />
 
           {/* Section 2 — Dice Roller */}
-          <DiceRoller session={session} onChange={handleChange} />
+          <DiceRoller session={session} onChange={handleChange} activeSceneId={activeSceneId} />
         </div>
       </div>
     </div>

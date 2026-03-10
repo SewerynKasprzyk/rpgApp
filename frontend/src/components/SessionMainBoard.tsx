@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { BoardScene, SceneItem, Session, StatusTag, UpdateSessionInput } from "@rpg/shared";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
 import SceneBoardItem from "./SceneBoardItem";
@@ -7,6 +7,9 @@ interface Props {
   scenes: BoardScene[];
   session?: Session;
   onChange: (updates: UpdateSessionInput) => void;
+  activeSceneId: string | null;
+  onActiveSceneChange: (id: string | null) => void;
+  onSetCurrentScene: (sceneId: string) => void;
 }
 
 /* ── Draggable wrapper for a placed scene item ── */
@@ -32,6 +35,24 @@ function PlacedItem({
     },
   });
 
+  /* ── Suppress transition on the local client right after dropping ── */
+  const wasDragRef = useRef(false);
+  const skipAnim = useRef(false);
+
+  if (wasDragRef.current && !isDragging) {
+    skipAnim.current = true;
+  }
+  wasDragRef.current = isDragging;
+
+  useEffect(() => {
+    if (skipAnim.current) {
+      const raf = requestAnimationFrame(() => { skipAnim.current = false; });
+      return () => cancelAnimationFrame(raf);
+    }
+  });
+
+  const animate = !isDragging && !skipAnim.current;
+
   const style: React.CSSProperties = {
     position: "absolute",
     left: item.x,
@@ -39,6 +60,7 @@ function PlacedItem({
     width: item.w,
     minHeight: item.h,
     transform: transform ? `translate(${transform.x}px, ${transform.y}px)` : undefined,
+    transition: animate ? "left .3s ease, top .3s ease" : undefined,
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 999 : 1,
   };
@@ -114,18 +136,16 @@ function BoardCanvas({
   );
 }
 
-export default function SessionMainBoard({ scenes, session, onChange }: Props) {
-  const [activeId, setActiveId] = useState<string | null>(
-    scenes.length > 0 ? scenes[0].id : null
-  );
+export default function SessionMainBoard({ scenes, session, onChange, activeSceneId, onActiveSceneChange, onSetCurrentScene }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Keep a ref to session so updateItemSnapshot always reads latest without recreating
   const sessionRef = useRef(session);
   sessionRef.current = session;
 
-  const activeScene = scenes.find((s) => s.id === activeId) ?? null;
+  const activeScene = scenes.find((s) => s.id === activeSceneId) ?? null;
 
   const addScene = () => {
     const newScene: BoardScene = {
@@ -134,15 +154,17 @@ export default function SessionMainBoard({ scenes, session, onChange }: Props) {
       items: [],
     };
     const updated = [...scenes, newScene];
-    onChange({ scenes: updated });
-    setActiveId(newScene.id);
+    onChange({ scenes: updated, currentSceneId: newScene.id });
+    onActiveSceneChange(newScene.id);
   };
 
   const removeScene = (id: string) => {
+    setConfirmDeleteId(null);
     const updated = scenes.filter((s) => s.id !== id);
     onChange({ scenes: updated });
-    if (activeId === id) {
-      setActiveId(updated.length > 0 ? updated[updated.length - 1].id : null);
+    if (activeSceneId === id) {
+      const next = updated.length > 0 ? updated[updated.length - 1].id : null;
+      onActiveSceneChange(next);
     }
   };
 
@@ -226,8 +248,8 @@ export default function SessionMainBoard({ scenes, session, onChange }: Props) {
           {scenes.map((scene) => (
             <div
               key={scene.id}
-              className={`main-board__tab ${activeId === scene.id ? "main-board__tab--active" : ""}`}
-              onClick={() => { if (editingId !== scene.id) setActiveId(scene.id); }}
+              className={`main-board__tab ${activeSceneId === scene.id ? "main-board__tab--active" : ""}${session?.currentSceneId === scene.id ? " main-board__tab--current" : ""}`}
+              onClick={() => { if (editingId !== scene.id) onActiveSceneChange(scene.id); }}
             >
               {editingId === scene.id ? (
                 <input
@@ -257,7 +279,7 @@ export default function SessionMainBoard({ scenes, session, onChange }: Props) {
               )}
               <button
                 className="main-board__tab-close"
-                onClick={(e) => { e.stopPropagation(); removeScene(scene.id); }}
+                onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(scene.id); }}
                 title="Remove scene"
               >
                 ×
@@ -265,10 +287,34 @@ export default function SessionMainBoard({ scenes, session, onChange }: Props) {
             </div>
           ))}
         </div>
+        <button
+          className="main-board__set-current"
+          onClick={() => { if (activeSceneId) onSetCurrentScene(activeSceneId); }}
+          title="Set this scene as the current scene for all clients"
+          disabled={!activeSceneId || session?.currentSceneId === activeSceneId}
+        >
+          📌 Set Current
+        </button>
         <button className="main-board__add-scene" onClick={addScene} title="Add scene">
           + Scene
         </button>
       </div>
+
+      {/* Delete Confirmation Overlay */}
+      {confirmDeleteId && (
+        <div className="scene-delete-overlay" onClick={() => setConfirmDeleteId(null)}>
+          <div className="scene-delete-popup" onClick={(e) => e.stopPropagation()}>
+            <p className="scene-delete-popup__msg">
+              Delete scene <strong>{scenes.find(s => s.id === confirmDeleteId)?.name}</strong>?
+              <br />All items in this scene will be lost.
+            </p>
+            <div className="scene-delete-popup__actions">
+              <button className="scene-delete-popup__btn scene-delete-popup__btn--cancel" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+              <button className="scene-delete-popup__btn scene-delete-popup__btn--confirm" onClick={() => removeScene(confirmDeleteId)}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Board Content */}
       <div className="main-board__content">

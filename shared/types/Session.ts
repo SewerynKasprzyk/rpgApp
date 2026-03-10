@@ -72,6 +72,8 @@ export interface Session {
   diceHistory: DiceRollResult[];
   scenes: BoardScene[];
   gmElements?: GmElement[];
+  usedScratchKeys?: string[];
+  currentSceneId?: string;
   createdAt: number;
 }
 

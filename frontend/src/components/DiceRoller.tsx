@@ -4,6 +4,7 @@ import { Session, UpdateSessionInput, DiceRollResult } from "@rpg/shared";
 interface Props {
   session: Session;
   onChange: (updates: UpdateSessionInput) => void;
+  activeSceneId: string | null;
 }
 
 const DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
@@ -22,33 +23,33 @@ function tallyGlowCons(arr: any[] | undefined): number {
   return t;
 }
 
-function countSceneBonus(session: Session): number {
+function countSceneBonus(session: Session, activeSceneId: string | null): number {
   let total = 0;
-  for (const scene of session.scenes ?? []) {
-    for (const item of scene.items ?? []) {
-      if (item.sourceType === "character") continue;
-      const snap = item.snapshot as Record<string, unknown>;
-      total += tallyGlowCons(snap.statuses as any[]);
-      total += tallyGlowCons(snap.tags as any[]);
-      // moves (threats)
-      for (const m of (snap.moves as any[] ?? [])) {
-        total += tallyGlowCons(m?.statuses);
-        total += tallyGlowCons(m?.tags);
-      }
-      // boxes (locations) — statuses, tags, and nested npcs
-      for (const b of (snap.boxes as any[] ?? [])) {
-        total += tallyGlowCons(b?.statuses);
-        total += tallyGlowCons(b?.tags);
-        for (const n of (b?.npcs ?? [])) {
-          total += tallyGlowCons(n?.statuses);
-          total += tallyGlowCons(n?.tags);
-        }
-      }
-      // top-level npcs
-      for (const n of (snap.npcs as any[] ?? [])) {
+  const scene = (session.scenes ?? []).find(s => s.id === activeSceneId);
+  if (!scene) return 0;
+  for (const item of scene.items ?? []) {
+    if (item.sourceType === "character") continue;
+    const snap = item.snapshot as Record<string, unknown>;
+    total += tallyGlowCons(snap.statuses as any[]);
+    total += tallyGlowCons(snap.tags as any[]);
+    // moves (threats)
+    for (const m of (snap.moves as any[] ?? [])) {
+      total += tallyGlowCons(m?.statuses);
+      total += tallyGlowCons(m?.tags);
+    }
+    // boxes (locations) — statuses, tags, and nested npcs
+    for (const b of (snap.boxes as any[] ?? [])) {
+      total += tallyGlowCons(b?.statuses);
+      total += tallyGlowCons(b?.tags);
+      for (const n of (b?.npcs ?? [])) {
         total += tallyGlowCons(n?.statuses);
         total += tallyGlowCons(n?.tags);
       }
+    }
+    // top-level npcs
+    for (const n of (snap.npcs as any[] ?? [])) {
+      total += tallyGlowCons(n?.statuses);
+      total += tallyGlowCons(n?.tags);
     }
   }
   return total;
@@ -70,21 +71,36 @@ function countCharacterBonus(session: Session): number {
   return total;
 }
 
-/** Count crossed-out abilities across all session characters */
+/** Count crossed-out abilities across all session characters (skip already-used) */
 function countScratchBonus(session: Session): number {
+  const used = new Set(session.usedScratchKeys ?? []);
   let count = 0;
   for (const sc of session.characters ?? []) {
-    for (const tc of sc.themeCards ?? []) {
-      for (const ab of tc.abilities ?? []) {
-        const a = typeof ab === "string" ? null : ab;
-        if (a?.isCrossed) count += 1;
+    for (let ti = 0; ti < (sc.themeCards ?? []).length; ti++) {
+      for (let ai = 0; ai < (sc.themeCards[ti].abilities ?? []).length; ai++) {
+        const a = typeof sc.themeCards[ti].abilities[ai] === "string" ? null : (sc.themeCards[ti].abilities[ai] as any);
+        if (a?.isCrossed && !used.has(`${sc.characterId}-${ti}-${ai}`)) count += 1;
       }
     }
   }
   return count * 3;
 }
 
-export default function DiceRoller({ session, onChange }: Props) {
+/** Collect all scratch keys (crossed abilities) to mark as used */
+function collectScratchKeys(session: Session): string[] {
+  const keys: string[] = [];
+  for (const sc of session.characters ?? []) {
+    for (let ti = 0; ti < (sc.themeCards ?? []).length; ti++) {
+      for (let ai = 0; ai < (sc.themeCards[ti].abilities ?? []).length; ai++) {
+        const a = typeof sc.themeCards[ti].abilities[ai] === "string" ? null : (sc.themeCards[ti].abilities[ai] as any);
+        if (a?.isCrossed) keys.push(`${sc.characterId}-${ti}-${ai}`);
+      }
+    }
+  }
+  return keys;
+}
+
+export default function DiceRoller({ session, onChange, activeSceneId }: Props) {
   const [die1, setDie1] = useState(0);
   const [die2, setDie2] = useState(0);
   const [rolling, setRolling] = useState(false);
@@ -97,9 +113,15 @@ export default function DiceRoller({ session, onChange }: Props) {
   // Modifier checkboxes (6 green, 6 red) — local to this roll
   const [greenChecks, setGreenChecks] = useState([false, false, false, false, false, false]);
   const [redChecks, setRedChecks] = useState([false, false, false, false, false, false]);
+  const [resetBonuses, setResetBonuses] = useState(true);
+
+  // Snapshot of bonuses captured at roll time (survives bonus reset)
+  const [rollBonuses, setRollBonuses] = useState<{
+    scene: number; char: number; scratch: number; mod: number;
+  } | null>(null);
 
   // Computed bonuses
-  const sceneBonus = useMemo(() => countSceneBonus(session), [session]);
+  const sceneBonus = useMemo(() => countSceneBonus(session, activeSceneId), [session, activeSceneId]);
   const charBonus = useMemo(() => countCharacterBonus(session), [session]);
   const scratchBonus = useMemo(() => countScratchBonus(session), [session]);
   const greenCount = greenChecks.filter(Boolean).length;
@@ -112,6 +134,7 @@ export default function DiceRoller({ session, onChange }: Props) {
     setShowResult(true);
     expireRef.current = setTimeout(() => {
       setShowResult(false);
+      setRollBonuses(null);
       expireRef.current = null;
     }, RESULT_EXPIRE_MS);
   }, []);
@@ -165,6 +188,9 @@ export default function DiceRoller({ session, onChange }: Props) {
       setRolling(false);
       startExpiry();
 
+      // Capture bonuses BEFORE clearing them
+      setRollBonuses({ scene: sceneBonus, char: charBonus, scratch: scratchBonus, mod: modifierBonus });
+
       const result: DiceRollResult = {
         die1: final1 + 1,
         die2: final2 + 1,
@@ -174,9 +200,70 @@ export default function DiceRoller({ session, onChange }: Props) {
 
       historyLenRef.current = (session.diceHistory?.length ?? 0) + 1;
 
-      onChange({
+      // Mark current scratches as used (fire once per roll)
+      const allScratchKeys = collectScratchKeys(session);
+      const usedScratchKeys = [...new Set([...(session.usedScratchKeys ?? []), ...allScratchKeys])];
+
+      const updates: UpdateSessionInput = {
         diceHistory: [...(session.diceHistory || []), result],
-      });
+        usedScratchKeys,
+      };
+
+      // Clear all pros / cons on active scene + characters if checkbox is on
+      if (resetBonuses) {
+        const stripGlow = (arr: any[] | undefined) =>
+          (arr ?? []).map((x: any) => ({ ...x, isGlowing: false, isCons: false }));
+
+        // Strip scene items in active scene
+        updates.scenes = (session.scenes ?? []).map(scene => {
+          if (scene.id !== activeSceneId) return scene;
+          return {
+            ...scene,
+            items: (scene.items ?? []).map(item => {
+              const snap = { ...(item.snapshot as Record<string, any>) };
+              if (snap.statuses) snap.statuses = stripGlow(snap.statuses);
+              if (snap.tags) snap.tags = stripGlow(snap.tags);
+              if (snap.moves) snap.moves = (snap.moves as any[]).map((m: any) => ({
+                ...m,
+                statuses: stripGlow(m?.statuses),
+                tags: stripGlow(m?.tags),
+              }));
+              if (snap.boxes) snap.boxes = (snap.boxes as any[]).map((b: any) => ({
+                ...b,
+                statuses: stripGlow(b?.statuses),
+                tags: stripGlow(b?.tags),
+                npcs: (b?.npcs ?? []).map((n: any) => ({
+                  ...n,
+                  statuses: stripGlow(n?.statuses),
+                  tags: stripGlow(n?.tags),
+                })),
+              }));
+              if (snap.npcs) snap.npcs = (snap.npcs as any[]).map((n: any) => ({
+                ...n,
+                statuses: stripGlow(n?.statuses),
+                tags: stripGlow(n?.tags),
+              }));
+              return { ...item, snapshot: snap };
+            }),
+          };
+        });
+
+        // Strip character bonuses (isMarked/isCons on abilities, isGlowing/isCons on statuses)
+        updates.characters = (session.characters ?? []).map(sc => ({
+          ...sc,
+          sceneStatuses: stripGlow(sc.sceneStatuses),
+          currentStatuses: stripGlow(sc.currentStatuses),
+          themeCards: sc.themeCards.map(tc => ({
+            ...tc,
+            abilities: (tc.abilities ?? []).map(ab => {
+              if (typeof ab === "string") return ab;
+              return { ...ab, isMarked: false, isCons: false };
+            }),
+          })) as typeof sc.themeCards,
+        }));
+      }
+
+      onChange(updates);
     }, ANIMATION_MS);
   };
 
@@ -185,12 +272,16 @@ export default function DiceRoller({ session, onChange }: Props) {
       ? session.diceHistory[session.diceHistory.length - 1]
       : null;
 
-  // Final result calculation (only meaningful when showing)
+  // Final result calculation — use roll-time snapshot if available
   const d1 = lastRoll?.die1 ?? 0;
   const d2 = lastRoll?.die2 ?? 0;
   const diceTotal = d1 + d2;
-  const totalCharBonus = charBonus + scratchBonus;
-  const grandTotal = diceTotal + sceneBonus + totalCharBonus + modifierBonus;
+  const displayScene = rollBonuses?.scene ?? sceneBonus;
+  const displayChar = rollBonuses?.char ?? charBonus;
+  const displayScratch = rollBonuses?.scratch ?? scratchBonus;
+  const displayMod = rollBonuses?.mod ?? modifierBonus;
+  const totalCharBonus = displayChar + displayScratch;
+  const grandTotal = diceTotal + displayScene + totalCharBonus + displayMod;
 
   // Critical overrides
   const isCritSuccess = lastRoll ? d1 === 6 && d2 === 6 : false;
@@ -233,6 +324,15 @@ export default function DiceRoller({ session, onChange }: Props) {
         <button className="dice-roller__throw" onClick={roll} disabled={rolling}>
           {rolling ? "Rolling…" : "🎲 Throw"}
         </button>
+
+        <label className="dice-roller__reset-toggle">
+          <input
+            type="checkbox"
+            checked={resetBonuses}
+            onChange={(e) => setResetBonuses(e.target.checked)}
+          />
+          Reset bonuses after throw
+        </label>
       </div>
 
       {/* Modifier checkboxes */}
@@ -262,14 +362,17 @@ export default function DiceRoller({ session, onChange }: Props) {
       {showResult && lastRoll && !rolling && (
         <div className="dice-roller__formula">
           <span className="dice-roller__formula-dice">{d1} + {d2}</span>
-          {sceneBonus !== 0 && (
-            <span className="dice-roller__formula-scene"> {formatBonus(sceneBonus)}</span>
+          {displayScene !== 0 && (
+            <span className="dice-roller__formula-scene"> {formatBonus(displayScene)}</span>
           )}
-          {totalCharBonus !== 0 && (
-            <span className="dice-roller__formula-char"> {formatBonus(totalCharBonus)}</span>
+          {displayChar !== 0 && (
+            <span className="dice-roller__formula-char"> {formatBonus(displayChar)}</span>
           )}
-          {modifierBonus !== 0 && (
-            <span className="dice-roller__formula-mod"> {formatBonus(modifierBonus)}</span>
+          {displayScratch !== 0 && (
+            <span className="dice-roller__formula-scratch"> {formatBonus(displayScratch)}</span>
+          )}
+          {displayMod !== 0 && (
+            <span className="dice-roller__formula-mod"> {formatBonus(displayMod)}</span>
           )}
           <span className="dice-roller__formula-eq"> = </span>
           <span className={`dice-roller__formula-total dice-roller__formula-total--${tier}`}>
@@ -296,13 +399,25 @@ export default function DiceRoller({ session, onChange }: Props) {
         <span className="dice-roller__bonus-item dice-roller__bonus-item--scene" title="From scene board (non-character items)">
           Scene: {sceneBonus >= 0 ? "+" : ""}{sceneBonus}
         </span>
-        <span className="dice-roller__bonus-item dice-roller__bonus-item--char" title="From session characters (statuses, tags, abilities, scratched)">
-          Character: {totalCharBonus >= 0 ? "+" : ""}{totalCharBonus}
+        <span className="dice-roller__bonus-item dice-roller__bonus-item--char" title="From session characters (statuses, tags, abilities)">
+          Character: {charBonus >= 0 ? "+" : ""}{charBonus}
+        </span>
+        <span className="dice-roller__bonus-item dice-roller__bonus-item--scratch" title="From crossed abilities (once per roll)">
+          Scratch: +{scratchBonus}
         </span>
         <span className="dice-roller__bonus-item dice-roller__bonus-item--mod" title="Green checkboxes - Red checkboxes">
           Modifier: {modifierBonus >= 0 ? "+" : ""}{modifierBonus}
         </span>
       </div>
+
+      {/* Reset scratches */}
+      <button
+        className="dice-roller__reset-scratch"
+        onClick={() => onChange({ usedScratchKeys: [] })}
+        disabled={(session.usedScratchKeys ?? []).length === 0}
+      >
+        ↺ Reset Scratches
+      </button>
 
       {/* History (last 5) */}
       {session.diceHistory && session.diceHistory.length > 0 && (
