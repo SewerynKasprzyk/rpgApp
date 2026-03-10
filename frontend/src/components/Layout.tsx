@@ -9,7 +9,7 @@ import {
   DragOverlay,
   type DragStartEvent,
   type DragEndEvent,
-  rectIntersection,
+  pointerWithin,
 } from "@dnd-kit/core";
 import SidebarMenu from "./SidebarMenu";
 import GMPanel from "./GMPanel";
@@ -436,7 +436,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <SessionContext.Provider value={{ session: activeSession, onChange: activeOnChange, register }}>
       <DndContext
         sensors={sensors}
-        collisionDetection={rectIntersection}
+        collisionDetection={pointerWithin}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >

@@ -1268,12 +1268,18 @@ button:disabled {
   overflow: hidden;
   align-self: stretch;
   cursor: pointer;
+  z-index: 100;
 }
 
 .gm-panel--open {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
   width: 25vw;
   min-width: 25vw;
   cursor: default;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.3);
 }
 
 /* Vertical label shown when collapsed */
