@@ -37,6 +37,7 @@ export interface Location {
   portraitUrl: string;
   description: string;
   statuses: LocationStatus[];
+  tags: LocationBoxTag[];
   boxes: LocationBox[];
 }
 

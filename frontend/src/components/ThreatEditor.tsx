@@ -2,6 +2,7 @@ import React from "react";
 import { v4 as uuid } from "uuid";
 import { ThreatLimit, ThreatTag, ThreatStatus, ThreatMove, Threat } from "@rpg/shared";
 import RoundCheckbox from "./RoundCheckbox";
+import AutoExpandTextarea from "./AutoExpandTextarea";
 
 const emptyTag = (): ThreatTag => ({
   id: uuid(),
@@ -153,6 +154,15 @@ export default function ThreatEditor({ threat, onChange }: Props) {
               value={threat.portraitUrl}
               onChange={(e) => update({ portraitUrl: e.target.value })}
               placeholder="Portrait URL"
+            />
+          </div>
+
+          <div className="sheet-box">
+            <label className="sheet-box__label">Description</label>
+            <AutoExpandTextarea
+              value={threat.description ?? ""}
+              onValueChange={val => update({ description: val })}
+              placeholder="Describe this threat…"
             />
           </div>
 

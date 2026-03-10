@@ -11,6 +11,7 @@ const emptyLocation = (): Location => ({
   portraitUrl: "",
   description: "",
   statuses: [],
+  tags: [],
   boxes: [],
 });
 

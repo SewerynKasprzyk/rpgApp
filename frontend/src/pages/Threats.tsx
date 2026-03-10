@@ -9,6 +9,7 @@ const emptyThreat = (): Threat => ({
   id: uuid(),
   name: "",
   portraitUrl: "",
+  description: "",
   limits: [],
   tags: [],
   statuses: [],

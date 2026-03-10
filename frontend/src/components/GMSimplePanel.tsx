@@ -21,7 +21,7 @@ const QUICK_THREAT_GROUP = "Quick Threats";
 const QUICK_LOCATION_GROUP = "Quick Locations";
 
 function emptyThreat(name: string, portraitUrl: string): Threat {
-  return { id: uuid(), name, portraitUrl, limits: [], tags: [], statuses: [], moves: [] };
+  return { id: uuid(), name, portraitUrl, description: "", limits: [], tags: [], statuses: [], moves: [] };
 }
 
 function emptyBox(title: string): LocationBox {

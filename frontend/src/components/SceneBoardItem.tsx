@@ -16,7 +16,7 @@ interface LimitSnap  { id: string; label: string; maxBoxes: number; checked: boo
 interface MoveSnap   { id: string; name: string; tags: TagSnap[]; statuses: StatusSnap[]; }
 
 interface ThreatSnap {
-  name?: string; portraitUrl?: string;
+  name?: string; portraitUrl?: string; description?: string;
   limits?: LimitSnap[]; tags?: TagSnap[];
   statuses?: StatusSnap[]; moves?: MoveSnap[];
 }
@@ -77,6 +77,23 @@ function ThreatTagsZone({
   });
   return (
     <div ref={setNodeRef} className={`sbi__col sbi__col--right${isOver ? " sbi__col--drop-over" : ""}`}>
+      {children}
+    </div>
+  );
+}
+
+/* ── Droppable wrapper for each move in threat cards ── */
+function MoveDropZone({
+  instanceId, sceneId, moveId, children,
+}: {
+  instanceId: string; sceneId: string; moveId: string; children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `scene-move-${instanceId}-${moveId}`,
+    data: { sceneId, instanceId, moveId },
+  });
+  return (
+    <div ref={setNodeRef} className={`sbi__move${isOver ? " sbi__move--over" : ""}`}>
       {children}
     </div>
   );
@@ -595,7 +612,7 @@ function SimpleLocationCard({
                         {npc.statuses.length > 0 && (
                           <div className="sbi__chips">
                             {npc.statuses.map((s: any, i: number) => (
-                              <RemovableChip key={i} large
+                              <RemovableChip key={i}
                                 label={typeof s === 'string' ? s : s.label}
                                 isGlowing={(s as any).isGlowing}
                                 isCons={(s as any).isCons}
@@ -644,7 +661,7 @@ function SimpleLocationCard({
                 {npc.statuses.length > 0 && (
                   <div className="sbi__chips">
                     {npc.statuses.map((s: any, i: number) => (
-                      <RemovableChip key={i} large
+                      <RemovableChip key={i}
                         label={typeof s === 'string' ? s : s.label}
                         isGlowing={(s as any).isGlowing}
                         isCons={(s as any).isCons}
@@ -916,6 +933,10 @@ function AdvThreatCard({
             ? <img className="sbi__portrait-square" src={snap.portraitUrl} alt="" />
             : <div className="sbi__portrait-square sbi__portrait-square--empty">☠</div>}
 
+          {snap.description && (
+            <p className="sbi__description">{snap.description}</p>
+          )}
+
           {(snap.limits ?? []).length > 0 && (
             <div className="sbi__section">
               <span className="sbi__section-label">Limits</span>
@@ -964,7 +985,7 @@ function AdvThreatCard({
             <div className="sbi__section">
               <span className="sbi__section-label">Moves</span>
               {snap.moves!.map(move => (
-                <div key={move.id} className="sbi__move">
+                <MoveDropZone key={move.id} instanceId={item.instanceId} sceneId={sceneId} moveId={move.id}>
                   <span className="sbi__move-name">{move.name}</span>
                   {move.tags.length > 0 && (
                     <div className="sbi__move-tags">
@@ -990,7 +1011,7 @@ function AdvThreatCard({
                       ))}
                     </div>
                   )}
-                </div>
+                </MoveDropZone>
               ))}
             </div>
           )}
@@ -1048,6 +1069,7 @@ function AdvLocationCard({
   const toggleNpcStatusCons = (boxId: string, npcId: string, idx: number) =>
     save({ boxes: (snap.boxes ?? []).map(b => b.id !== boxId ? b : { ...b, npcs: b.npcs.map(npc => npc.id !== npcId ? npc : { ...npc, statuses: npc.statuses.map((s, i) => i !== idx ? s : { ...(typeof s === 'string' ? { label: s } : s), isCons: !(s as any).isCons, isGlowing: false }) }) }) });
   const removeLocStatus     = (id: string) => save({ statuses: (snap.statuses ?? []).filter(s => s.id !== id) });
+  const removeLocTag         = (id: string) => save({ tags: (snap.tags ?? []).filter(t => t.id !== id) });
   const removeBoxStatus     = (boxId: string, statusId: string) =>
     save({ boxes: (snap.boxes ?? []).map(b => b.id !== boxId ? b : { ...b, statuses: b.statuses.filter(s => s.id !== statusId) }) });
   const removeBoxTag        = (boxId: string, tagId: string) =>
@@ -1059,6 +1081,9 @@ function AdvLocationCard({
 
   const toggleLocStatusGlow  = (id: string) => save({ statuses: (snap.statuses ?? []).map(s => s.id !== id ? s : { ...s, isGlowing: !s.isGlowing, isCons: false }) });
   const toggleLocStatusCons  = (id: string) => save({ statuses: (snap.statuses ?? []).map(s => s.id !== id ? s : { ...s, isCons: !s.isCons, isGlowing: false }) });
+  const toggleLocTagGlow     = (id: string) => save({ tags: (snap.tags ?? []).map(t => t.id !== id ? t : { ...t, isGlowing: !t.isGlowing, isCons: false }) });
+  const toggleLocTagCons     = (id: string) => save({ tags: (snap.tags ?? []).map(t => t.id !== id ? t : { ...t, isCons: !t.isCons, isGlowing: false }) });
+  const toggleLocTagCb       = (tagId: string, i: number) => save({ tags: (snap.tags ?? []).map(t => t.id !== tagId ? t : { ...t, checkboxes: toggleFill(t.checkboxes, i) }) });
   const toggleBoxStatusGlow  = (boxId: string, id: string) => save({ boxes: (snap.boxes ?? []).map(b => b.id !== boxId ? b : { ...b, statuses: b.statuses.map(s => s.id !== id ? s : { ...s, isGlowing: !s.isGlowing, isCons: false }) }) });
   const toggleBoxStatusCons  = (boxId: string, id: string) => save({ boxes: (snap.boxes ?? []).map(b => b.id !== boxId ? b : { ...b, statuses: b.statuses.map(s => s.id !== id ? s : { ...s, isCons: !s.isCons, isGlowing: false }) }) });
   const toggleBoxTagGlow     = (boxId: string, id: string) => save({ boxes: (snap.boxes ?? []).map(b => b.id !== boxId ? b : { ...b, tags: b.tags.map(t => t.id !== id ? t : { ...t, isGlowing: !t.isGlowing, isCons: false }) }) });
@@ -1098,6 +1123,17 @@ function AdvLocationCard({
                     onToggleCons={() => toggleLocStatusCons(s.id)} />
                 ))}
               </div>
+            </div>
+          )}
+
+          {(snap.tags ?? []).length > 0 && (
+            <div className="sbi__section">
+              <span className="sbi__section-label">Tags</span>
+              {snap.tags!.map(tag => (
+                <TagRow key={tag.id} tag={tag} onToggle={i => toggleLocTagCb(tag.id, i)} onRemove={() => removeLocTag(tag.id)}
+                  onToggleGlow={() => toggleLocTagGlow(tag.id)}
+                  onToggleCons={() => toggleLocTagCons(tag.id)} />
+              ))}
             </div>
           )}
         </ThreatStatusesZone>
@@ -1149,7 +1185,7 @@ function AdvLocationCard({
                             {npc.statuses.length > 0 && (
                               <div className="sbi__chips">
                                 {npc.statuses.map((s: any, i: number) => (
-                                  <RemovableChip key={i} large
+                                  <RemovableChip key={i}
                                     label={typeof s === 'string' ? s : s.label}
                                     isGlowing={(s as any).isGlowing}
                                     isCons={(s as any).isCons}

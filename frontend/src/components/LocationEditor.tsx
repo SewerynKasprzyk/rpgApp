@@ -11,6 +11,7 @@ import {
 import AutoExpandTextarea from "./AutoExpandTextarea";
 import RoundCheckbox from "./RoundCheckbox";
 
+const emptyTag = (): LocationBoxTag => ({ id: uuid(), label: "", note: "", checkboxes: [false, false, false, false, false, false] });
 const emptyStatus = (): LocationStatus => ({ id: uuid(), label: "" });
 const emptyBoxStatus = (): LocationBoxStatus => ({ id: uuid(), label: "", notes: [] });
 const emptyBoxTag = (): LocationBoxTag => ({ id: uuid(), label: "", note: "", checkboxes: [false, false, false, false, false, false] });
@@ -23,6 +24,10 @@ function normalizeLocation(loc: Location): Location {
   return {
     ...loc,
     statuses: loc.statuses ?? [],
+    tags: (loc.tags ?? []).map(t => ({
+      ...t,
+      checkboxes: (t.checkboxes ?? [...EMPTY_CHECKBOXES]) as [boolean, boolean, boolean, boolean, boolean, boolean],
+    })),
     boxes: (loc.boxes ?? []).map(box => ({
       ...box,
       statuses: (box.statuses ?? []).map(s => ({ ...s, notes: s.notes ?? [] })),
@@ -50,6 +55,20 @@ export default function LocationEditor({ location: rawLocation, onChange }: Prop
     update({ statuses: location.statuses.filter(s => s.id !== id) });
   const patchStatus = (id: string, label: string) =>
     update({ statuses: location.statuses.map(s => s.id === id ? { ...s, label } : s) });
+
+  // ─── Section 1: Tags ─────────────────────────────────────────────
+  const addTag = () => update({ tags: [...(location.tags ?? []), emptyTag()] });
+  const removeTag = (id: string) =>
+    update({ tags: (location.tags ?? []).filter(t => t.id !== id) });
+  const patchTag = (id: string, patch: Partial<LocationBoxTag>) =>
+    update({ tags: (location.tags ?? []).map(t => t.id === id ? { ...t, ...patch } : t) });
+  const toggleTagCheckbox = (id: string, i: number) => {
+    const tag = (location.tags ?? []).find(t => t.id === id)!;
+    const cb = [...tag.checkboxes] as [boolean, boolean, boolean, boolean, boolean, boolean];
+    if (!cb[i]) { for (let j = 0; j <= i; j++) cb[j] = true; }
+    else { for (let j = i; j < cb.length; j++) cb[j] = false; }
+    patchTag(id, { checkboxes: cb });
+  };
 
   // ─── Boxes ────────────────────────────────────────────────────────
   const addBox = () => update({ boxes: [...location.boxes, emptyBox()] });
@@ -217,6 +236,40 @@ export default function LocationEditor({ location: rawLocation, onChange }: Prop
             </div>
             <button type="button" className="add-slot-btn" onClick={addStatus}>
               + Add Status
+            </button>
+          </div>
+
+          {/* Tags */}
+          <div className="sheet-box">
+            <label className="sheet-box__label">Tags</label>
+            <div className="status-list">
+              {(location.tags ?? []).map(tag => (
+                <div key={tag.id} className="status-box">
+                  <div className="status-box__top">
+                    <input
+                      className="status-box__tag"
+                      value={tag.label}
+                      placeholder="Tag"
+                      onChange={e => patchTag(tag.id, { label: e.target.value })}
+                    />
+                    <input
+                      className="status-box__note"
+                      value={tag.note}
+                      placeholder="Note (optional)"
+                      onChange={e => patchTag(tag.id, { note: e.target.value })}
+                    />
+                    <button type="button" className="status-box__remove" onClick={() => removeTag(tag.id)}>×</button>
+                  </div>
+                  <div className="status-box__checkboxes">
+                    {tag.checkboxes.map((v, i) => (
+                      <RoundCheckbox key={i} checked={v} onChange={() => toggleTagCheckbox(tag.id, i)} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button type="button" className="add-slot-btn" onClick={addTag}>
+              + Add Tag
             </button>
           </div>
         </div>

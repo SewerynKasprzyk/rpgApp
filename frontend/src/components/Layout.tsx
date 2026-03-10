@@ -129,7 +129,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (
       dragData.sourceType === "simpleElement" &&
       typeof over.id === "string" &&
-      (over.id.startsWith("scene-item-") || over.id.startsWith("scene-statuses-") || over.id.startsWith("scene-tags-")) &&
+      (over.id.startsWith("scene-item-") || over.id.startsWith("scene-statuses-") || over.id.startsWith("scene-tags-") || over.id.startsWith("scene-move-")) &&
       activeSession
     ) {
       const overId = over.id as string;
@@ -138,6 +138,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       const targetInstanceId = overId.startsWith("scene-item-")
         ? overId.replace("scene-item-", "")
         : (over.data.current as { instanceId?: string })?.instanceId;
+      const targetMoveId = (over.data.current as { moveId?: string })?.moveId;
       if (!targetSceneId || !targetInstanceId) return;
 
       const snap = dragData.payload ?? {};
@@ -172,6 +173,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           items: (scene.items ?? []).map((item) => {
             if (item.instanceId !== targetInstanceId) return item;
             const snapshot = { ...item.snapshot } as Record<string, unknown>;
+            // Move-specific drop
+            if (targetMoveId) {
+              if (kind === "npc") return item;
+              type MoveEntry = { id: string; name: string; statuses: Array<{ id: string; label: string }>; tags: StatusTag[] };
+              const moves = (snapshot.moves as MoveEntry[] | undefined) ?? [];
+              if (kind === "status") {
+                snapshot.moves = moves.map(m =>
+                  m.id !== targetMoveId ? m :
+                  m.statuses.some(s => s.label === label) ? m :
+                  { ...m, statuses: [...m.statuses, { id: uuid(), label }] }
+                );
+              } else {
+                snapshot.moves = moves.map(m =>
+                  m.id !== targetMoveId ? m :
+                  m.tags.some((t: StatusTag) => t.tag === label) ? m :
+                  { ...m, tags: [...m.tags, newStatusTag] }
+                );
+              }
+              return { ...item, snapshot };
+            }
             if (item.sourceType === "character") {
               if (kind === "status") {
                 // Simple chip — goes to statuses, syncs to SessionCharacter.sceneStatuses
@@ -191,7 +212,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 updatedCharCurrentStatuses = updated;
               }
             } else if (item.sourceType === "simpleLocation" || item.sourceType === "advLocation") {
-              const goesToStatusesLoc = forceStatuses || (!forceTags && kind === "status");
+              const goesToStatusesLoc = kind === "status";
               if (kind === "npc") {
                 const existing = (snapshot.npcs as Array<{ id: string; name: string }> | undefined) ?? [];
                 if (existing.some((n) => n.name === label)) return item;

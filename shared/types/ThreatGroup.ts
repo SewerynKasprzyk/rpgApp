@@ -28,6 +28,7 @@ export interface Threat {
   id: string;
   name: string;
   portraitUrl: string;
+  description: string;
   limits: ThreatLimit[];
   tags: ThreatTag[];
   statuses: ThreatStatus[];
