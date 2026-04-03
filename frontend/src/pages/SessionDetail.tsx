@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Session, UpdateSessionInput, Character } from "@rpg/shared";
+import { Session, UpdateSessionInput, Character, StatusTag } from "@rpg/shared";
 import { fetchSession, updateSession, fetchCharacters, updateCharacter } from "../services/apiClient";
 import { useRealtimeCharacters } from "../hooks/useRealtimeCharacters";
 import { subscribe, subscribeSession } from "../services/realtimeClient";
@@ -11,6 +11,55 @@ import SessionMainBoard from "../components/SessionMainBoard";
 import { useSessionContext } from "../context/SessionContext";
 
 const DEBOUNCE_MS = 500;
+const EMPTY_STATUS_CHECKBOXES: [boolean, boolean, boolean, boolean, boolean, boolean] = [false, false, false, false, false, false];
+
+function normalizeBackpackTags(raw: Array<string | StatusTag> | undefined): StatusTag[] {
+  return (raw ?? [])
+    .map((entry, idx) => {
+      if (typeof entry === "string") {
+        return {
+          id: `bp-${idx}-${entry}`,
+          tag: entry,
+          note: "",
+          checkboxes: [...EMPTY_STATUS_CHECKBOXES] as [boolean, boolean, boolean, boolean, boolean, boolean],
+        };
+      }
+
+      const checks = Array.isArray(entry.checkboxes)
+        ? entry.checkboxes.slice(0, 6).map(Boolean)
+        : [...EMPTY_STATUS_CHECKBOXES];
+      while (checks.length < 6) checks.push(false);
+
+      return {
+        id: entry.id ?? `bp-${idx}-${entry.tag ?? "item"}`,
+        tag: (entry as any).tag ?? (entry as any).label ?? "",
+        note: entry.note ?? "",
+        checkboxes: checks as [boolean, boolean, boolean, boolean, boolean, boolean],
+        isGlowing: (entry as any).isGlowing,
+        isCons: (entry as any).isCons,
+      };
+    })
+    .sort((a, b) => a.tag.localeCompare(b.tag, undefined, { sensitivity: "base" }));
+}
+
+function mergeBackpackWithSessionState(
+  existing: Array<string | StatusTag> | undefined,
+  fresh: Array<string | StatusTag> | undefined
+): StatusTag[] {
+  const existingNormalized = normalizeBackpackTags(existing);
+  const freshNormalized = normalizeBackpackTags(fresh);
+  const existingByTag = new Map(existingNormalized.map((t) => [t.tag, t]));
+
+  return freshNormalized.map((t) => {
+    const prev = existingByTag.get(t.tag);
+    if (!prev) return t;
+    return {
+      ...t,
+      isGlowing: (prev as any).isGlowing,
+      isCons: (prev as any).isCons,
+    };
+  });
+}
 
 export default function SessionDetail() {
   const { id } = useParams<{ id: string }>();
@@ -58,6 +107,10 @@ export default function SessionDetail() {
           sceneStatuses: fresh.sceneStatuses ?? sc.sceneStatuses,
           currentStatuses: fresh.currentStatuses ?? sc.currentStatuses,
           sectionQuestCheckboxes: fresh.sectionQuestCheckboxes ?? sc.sectionQuestCheckboxes,
+          backpackTags: mergeBackpackWithSessionState(
+            sc.backpackTags as unknown as Array<string | StatusTag> | undefined,
+            fresh.backpackTags as unknown as Array<string | StatusTag> | undefined
+          ),
           companions: fresh.companions ?? sc.companions,
           relationshipTags: fresh.relationshipTags ?? sc.relationshipTags,
         };
@@ -157,6 +210,10 @@ export default function SessionDetail() {
           if (!fresh) return sc;
           return {
             ...sc,
+            backpackTags: mergeBackpackWithSessionState(
+              sc.backpackTags as unknown as Array<string | StatusTag> | undefined,
+              fresh.backpackTags as unknown as Array<string | StatusTag> | undefined
+            ),
             currentStatuses: fresh.currentStatuses ?? [],
             sceneStatuses: fresh.sceneStatuses ?? [],
           };

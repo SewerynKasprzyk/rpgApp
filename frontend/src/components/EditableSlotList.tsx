@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 
 interface Props {
-  items: string[];
+  items?: string[] | null;
   onChange: (items: string[]) => void;
   placeholder: string;
   editMode?: boolean;
@@ -22,19 +22,19 @@ export default function EditableSlotList({ items, onChange, placeholder, editMod
 
   const commitEdit = (index: number) => {
     const trimmed = editValue.trim();
-    if (index < items.length) {
+    if (index < safeItems.length) {
       // Editing existing item
       if (trimmed) {
-        const updated = [...items];
+        const updated = [...safeItems];
         updated[index] = trimmed;
         onChange(updated);
       } else {
         // Empty = delete
-        onChange(items.filter((_, i) => i !== index));
+        onChange(safeItems.filter((_, i) => i !== index));
       }
     } else if (trimmed) {
       // Adding new item
-      onChange([...items, trimmed]);
+      onChange([...safeItems, trimmed]);
     }
     setEditingIndex(null);
     setEditValue("");
@@ -80,7 +80,7 @@ export default function EditableSlotList({ items, onChange, placeholder, editMod
             <button
               type="button"
               className="editable-slot__delete"
-              onClick={() => onChange(items.filter((_, idx) => idx !== i))}
+              onClick={() => onChange(safeItems.filter((_, idx) => idx !== i))}
               title="Remove"
             >
               ×
@@ -91,20 +91,20 @@ export default function EditableSlotList({ items, onChange, placeholder, editMod
       {/* Add new slot */}
       {editMode && (
       <div className="editable-slot editable-slot--add">
-        {editingIndex === items.length ? (
+        {editingIndex === safeItems.length ? (
           <input
             ref={inputRef}
             className="editable-slot__input"
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
-            onBlur={() => commitEdit(items.length)}
-            onKeyDown={(e) => handleKeyDown(e, items.length)}
+            onBlur={() => commitEdit(safeItems.length)}
+            onKeyDown={(e) => handleKeyDown(e, safeItems.length)}
             placeholder={placeholder}
           />
         ) : (
           <span
             className="editable-slot__placeholder"
-            onClick={() => startEdit(items.length, "")}
+            onClick={() => startEdit(safeItems.length, "")}
           >
             + {placeholder}
           </span>

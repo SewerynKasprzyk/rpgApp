@@ -224,13 +224,18 @@ export default function SessionMainBoard({ scenes, session, onChange, activeScen
       const updates: UpdateSessionInput = { scenes: updatedScenes };
       // Sync statuses + currentStatuses from scene snapshot back to session.characters (live)
       if (targetItem?.sourceType === "character" && sessionRef.current) {
-        const charSnap = snapshot as { statuses?: Array<{ id: string; label: string }>; currentStatuses?: StatusTag[] };
+        const charSnap = snapshot as {
+          statuses?: Array<{ id: string; label: string }>;
+          currentStatuses?: StatusTag[];
+          backpackTags?: Array<StatusTag | { id: string; label: string; isGlowing?: boolean; isCons?: boolean }>;
+        };
         const updatedChars = sessionRef.current.characters.map((c) => {
           if (c.characterId !== targetItem.sourceId) return c;
           return {
             ...c,
             ...(charSnap.statuses !== undefined ? { sceneStatuses: charSnap.statuses } : {}),
             ...(charSnap.currentStatuses !== undefined ? { currentStatuses: charSnap.currentStatuses } : {}),
+            ...(charSnap.backpackTags !== undefined ? { backpackTags: charSnap.backpackTags } : {}),
           };
         });
         updates.characters = updatedChars;

@@ -12,6 +12,9 @@ export default function SessionCharacterSidebar({
   sessionCharacterIds,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
+  const sortedCharacters = [...allCharacters].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+  );
 
   return (
     <aside
@@ -37,8 +40,14 @@ export default function SessionCharacterSidebar({
       )}
       <div className="session-sidebar__list">
         {expanded &&
-          allCharacters.map((char) => {
+          sortedCharacters.map((char) => {
             const inSession = sessionCharacterIds.includes(char.id);
+            const backpackTags = [...(char.backpackTags ?? [])]
+              .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+              .map((tag, idx) => ({
+                id: `bp-${char.id}-${idx}`,
+                label: tag,
+              }));
             return (
               <DraggableSourceItem
                 key={char.id}
@@ -51,6 +60,7 @@ export default function SessionCharacterSidebar({
                   portraitUrl: char.portraitUrl,
                   statuses: char.sceneStatuses ?? [],
                   currentStatuses: char.currentStatuses ?? [],
+                  backpackTags,
                 }}
               >
                 <div

@@ -35,6 +35,7 @@ interface CharSnap {
   name?: string; portraitUrl?: string;
   statuses?: StatusSnap[];   // simple label chips — synced to SessionCharacter.sceneStatuses
   currentStatuses?: Array<{ id: string; tag: string; note: string; checkboxes: [boolean,boolean,boolean,boolean,boolean,boolean] }>; // TagRows — synced to SessionCharacter.currentStatuses
+  backpackTags?: Array<{ id: string; label: string; isGlowing?: boolean; isCons?: boolean }>;
 }
 
 interface SimpleSnap { label?: string; note?: string; checkboxCount?: number; kind?: string; portraitUrl?: string; statuses?: StatusSnap[]; tags?: TagSnap[]; }
@@ -736,6 +737,21 @@ function CharacterCard({
     onUpdateSnapshot(item.instanceId, { ...snap, currentStatuses: (snap.currentStatuses ?? []).map(s =>
       s.id !== id ? s : { ...s, isCons: !(s as any).isCons, isGlowing: false }
     )} as Record<string, unknown>);
+  const toggleBackpackGlow = (id: string) =>
+    onUpdateSnapshot(item.instanceId, { ...snap, backpackTags: (snap.backpackTags ?? []).map(s =>
+      s.id !== id ? s : { ...s, isGlowing: !(s as any).isGlowing, isCons: false }
+    )} as Record<string, unknown>);
+  const toggleBackpackCons = (id: string) =>
+    onUpdateSnapshot(item.instanceId, { ...snap, backpackTags: (snap.backpackTags ?? []).map(s =>
+      s.id !== id ? s : { ...s, isCons: !(s as any).isCons, isGlowing: false }
+    )} as Record<string, unknown>);
+
+  const backpackTags = (snap.backpackTags ?? []).map((s: any, i: number) => ({
+    id: s.id ?? `bp-${i}-${s.label ?? s.tag ?? "item"}`,
+    label: s.label ?? s.tag ?? "",
+    isGlowing: s.isGlowing,
+    isCons: s.isCons,
+  }));
 
   return (
     <div ref={setDropRef} className={`sbi sbi--character${isDropOver ? " sbi--drop-over" : ""}`}>
@@ -775,7 +791,25 @@ function CharacterCard({
         </div>
       )}
 
-      {(snap.statuses ?? []).length === 0 && (snap.currentStatuses ?? []).length === 0 && (
+      {backpackTags.length > 0 && (
+        <div className="sbi__section">
+          <span className="sbi__section-label">Backpack</span>
+          <div className="sbi__chips">
+            {backpackTags.map((s) => (
+              <RemovableChip
+                key={s.id}
+                label={s.label}
+                isGlowing={s.isGlowing}
+                isCons={s.isCons}
+                onToggleGlow={() => toggleBackpackGlow(s.id)}
+                onToggleCons={() => toggleBackpackCons(s.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(snap.statuses ?? []).length === 0 && (snap.currentStatuses ?? []).length === 0 && (snap.backpackTags ?? []).length === 0 && (
         <span className="sbi__empty">↓ Drop statuses / tags</span>
       )}
     </div>

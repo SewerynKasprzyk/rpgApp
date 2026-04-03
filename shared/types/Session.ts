@@ -52,6 +52,7 @@ export interface SessionCharacter {
   sceneStatuses: { id: string; label: string }[];
   currentStatuses: StatusTag[];
   sectionQuestCheckboxes: QuestCheckboxes;
+  backpackTags?: Array<StatusTag | string>;
   companions?: string[];
   relationshipTags?: string[];
 }
@@ -62,6 +63,10 @@ export interface DiceRollResult {
   die2: number;
   total: number;
   timestamp: number;
+  sceneBonus?: number;
+  characterBonus?: number;
+  scratchBonus?: number;
+  modifierBonus?: number;
 }
 
 export interface Session {

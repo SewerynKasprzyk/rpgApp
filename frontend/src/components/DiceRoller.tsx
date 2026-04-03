@@ -17,8 +17,12 @@ const RESULT_EXPIRE_MS = 10_000;
 function tallyGlowCons(arr: any[] | undefined): number {
   let t = 0;
   for (const x of arr ?? []) {
-    if (x?.isGlowing) t += 1;
-    if (x?.isCons) t -= 1;
+    const checkedCount = Array.isArray(x?.checkboxes)
+      ? x.checkboxes.filter((v: boolean) => Boolean(v)).length
+      : 0;
+    const weight = checkedCount > 0 ? checkedCount : 1;
+    if (x?.isGlowing) t += weight;
+    if (x?.isCons) t -= weight;
   }
   return t;
 }
@@ -60,6 +64,7 @@ function countCharacterBonus(session: Session): number {
   for (const sc of session.characters ?? []) {
     total += tallyGlowCons(sc.sceneStatuses as any[]);
     total += tallyGlowCons(sc.currentStatuses as any[]);
+    total += tallyGlowCons(sc.backpackTags as any[]);
     for (const tc of sc.themeCards ?? []) {
       for (const ab of tc.abilities ?? []) {
         const a = typeof ab === "string" ? null : ab;
@@ -196,6 +201,10 @@ export default function DiceRoller({ session, onChange, activeSceneId }: Props) 
         die2: final2 + 1,
         total: final1 + final2 + 2,
         timestamp: Date.now(),
+        sceneBonus,
+        characterBonus: charBonus,
+        scratchBonus,
+        modifierBonus,
       };
 
       historyLenRef.current = (session.diceHistory?.length ?? 0) + 1;
@@ -253,6 +262,7 @@ export default function DiceRoller({ session, onChange, activeSceneId }: Props) 
           ...sc,
           sceneStatuses: stripGlow(sc.sceneStatuses),
           currentStatuses: stripGlow(sc.currentStatuses),
+          backpackTags: stripGlow(sc.backpackTags as any[]),
           themeCards: sc.themeCards.map(tc => ({
             ...tc,
             abilities: (tc.abilities ?? []).map(ab => {
@@ -276,10 +286,10 @@ export default function DiceRoller({ session, onChange, activeSceneId }: Props) 
   const d1 = lastRoll?.die1 ?? 0;
   const d2 = lastRoll?.die2 ?? 0;
   const diceTotal = d1 + d2;
-  const displayScene = rollBonuses?.scene ?? sceneBonus;
-  const displayChar = rollBonuses?.char ?? charBonus;
-  const displayScratch = rollBonuses?.scratch ?? scratchBonus;
-  const displayMod = rollBonuses?.mod ?? modifierBonus;
+  const displayScene = rollBonuses?.scene ?? lastRoll?.sceneBonus ?? sceneBonus;
+  const displayChar = rollBonuses?.char ?? lastRoll?.characterBonus ?? charBonus;
+  const displayScratch = rollBonuses?.scratch ?? lastRoll?.scratchBonus ?? scratchBonus;
+  const displayMod = rollBonuses?.mod ?? lastRoll?.modifierBonus ?? modifierBonus;
   const totalCharBonus = displayChar + displayScratch;
   const grandTotal = diceTotal + displayScene + totalCharBonus + displayMod;
 

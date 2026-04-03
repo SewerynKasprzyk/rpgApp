@@ -11,6 +11,26 @@ import { v4 as uuid } from "uuid";
 import RoundCheckbox from "./RoundCheckbox";
 import CheckboxGroup from "./CheckboxGroup";
 
+type BackpackTagView = { id: string; label: string; isGlowing?: boolean; isCons?: boolean };
+
+function normalizeBackpackTags(raw: Array<string | StatusTag | { id?: string; label?: string; isGlowing?: boolean; isCons?: boolean }> | undefined): BackpackTagView[] {
+  return (raw ?? []).map((entry, idx) => {
+    if (typeof entry === "string") {
+      return {
+        id: `bp-${idx}-${entry}`,
+        label: entry,
+      };
+    }
+
+    return {
+      id: entry.id ?? `bp-${idx}-${(entry as any).label ?? (entry as any).tag ?? "item"}`,
+      label: (entry as any).label ?? (entry as any).tag ?? "",
+      isGlowing: (entry as any).isGlowing,
+      isCons: (entry as any).isCons,
+    };
+  });
+}
+
 function SceneStatusInput({ onAdd }: { onAdd: (label: string) => void }) {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -101,6 +121,9 @@ export default function SessionCharacters({
           improve: [false, false, false],
           milestone: [false, false, false],
         },
+        backpackTags: normalizeBackpackTags(fullChar.backpackTags).sort((a, b) =>
+          a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+        ),
         companions: fullChar.companions ?? [],
         relationshipTags: fullChar.relationshipTags ?? [],
       };
@@ -456,6 +479,39 @@ export default function SessionCharacters({
     updateStatus(charId, statusId, { checkboxes: cb });
   };
 
+  const updateBackpackTags = (
+    charId: string,
+    updater: (tags: BackpackTagView[]) => BackpackTagView[]
+  ) => {
+    onChange({
+      characters: session.characters.map((c) =>
+        c.characterId === charId
+          ? { ...c, backpackTags: updater(normalizeBackpackTags(c.backpackTags as Array<string | StatusTag> | undefined)) }
+          : c
+      ),
+    });
+  };
+
+  const toggleBackpackGlow = (charId: string, tagId: string) => {
+    if (chipDidLongRef.current) {
+      chipDidLongRef.current = false;
+      return;
+    }
+    updateBackpackTags(charId, (tags) =>
+      tags.map((t) =>
+        t.id === tagId ? { ...t, isGlowing: !(t as any).isGlowing, isCons: false } : t
+      )
+    );
+  };
+
+  const toggleBackpackCons = (charId: string, tagId: string) => {
+    updateBackpackTags(charId, (tags) =>
+      tags.map((t) =>
+        t.id === tagId ? { ...t, isCons: !(t as any).isCons, isGlowing: false } : t
+      )
+    );
+  };
+
   return (
     <div
       className={`section session-characters ${
@@ -574,6 +630,45 @@ export default function SessionCharacters({
                     {(sc.companions ?? []).map((t, i) => (
                       <span key={i} className="session-char-card__tag">{t}</span>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {normalizeBackpackTags(sc.backpackTags as Array<string | StatusTag> | undefined).length > 0 && (
+                <div className="session-char-card__section">
+                  <span className="session-char-card__section-label">🎒 Backpack</span>
+                  <div className="session-char-card__chips">
+                    {normalizeBackpackTags(sc.backpackTags as Array<string | StatusTag> | undefined).map((t) => {
+                      const key = `bp-${sc.characterId}-${t.id}`;
+                      const isGlowing = (t as any).isGlowing;
+                      const isCons = (t as any).isCons;
+                      const stateClass = isCons
+                        ? " session-char-card__chip--cons"
+                        : isGlowing
+                          ? " session-char-card__chip--glowing"
+                          : "";
+                      const pressingClass = pressingChipKey === key ? " session-char-card__chip--pressing" : "";
+
+                      return (
+                        <span
+                          key={key}
+                          className={`session-char-card__chip${stateClass}${pressingClass}`}
+                          onPointerDown={(e) => {
+                            e.stopPropagation();
+                            startChipLongPress(key, () => toggleBackpackCons(sc.characterId, t.id));
+                          }}
+                          onPointerUp={(e) => {
+                            e.stopPropagation();
+                            cancelChipLongPress();
+                          }}
+                          onPointerLeave={cancelChipLongPress}
+                          onClick={() => toggleBackpackGlow(sc.characterId, t.id)}
+                          title="Click = glow (pros) | Hold = cons (violet)"
+                        >
+                          {t.label}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               )}
